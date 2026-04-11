@@ -1,0 +1,237 @@
+# Business Flow
+
+## End-to-End Document Processing
+
+This document describes the complete lifecycle of a citizen's document submission from physical paper to final resolution, covering both the staff and citizen perspectives.
+
+## Overview
+
+```
+Citizen          Staff (Reception)       AI System         Department Staff        Citizen
+  │                    │                     │                    │                   │
+  │  Submit physical   │                     │                    │                   │
+  │  document at       │                     │                    │                   │
+  │  service window    │                     │                    │                   │
+  │───────────────────>│                     │                    │                   │
+  │                    │  Scan pages         │                    │                   │
+  │                    │  via camera         │                    │                   │
+  │                    │─────────────────────>│                    │                   │
+  │                    │                     │  OCR extraction    │                   │
+  │                    │                     │  Classification    │                   │
+  │                    │                     │  Template filling  │                   │
+  │                    │  Review & confirm   │<───────────────────│                   │
+  │                    │<────────────────────│                    │                   │
+  │                    │                     │                    │                   │
+  │                    │  Route to           │                    │                   │
+  │                    │  departments        │                    │                   │
+  │                    │────────────────────────────────────────>│                   │
+  │                    │                     │                    │  Review document  │
+  │                    │                     │                    │  Approve/Reject   │
+  │                    │                     │                    │──────────────────>│
+  │                    │                     │                    │   Push            │
+  │                    │                     │                    │   notification    │
+```
+
+## Phase 1: Document Intake
+
+### Staff Actions
+
+1. **Create submission** — Staff enters the citizen's CCCD (national ID) number, selects a security classification level, and sets priority (normal/urgent).
+
+2. **Scan pages** — Staff uses the mobile camera to capture each page of the physical document. Pages can be:
+   - Re-captured if image quality is poor
+   - Reordered via drag-and-drop
+   - Scanned offline and queued for upload when connectivity returns
+
+3. **Finalize scan** — Staff confirms all pages are captured. This triggers the AI processing pipeline.
+
+### What Happens Behind the Scenes
+
+- Each scanned image is uploaded to Alibaba Cloud OSS
+- Image quality is assessed (blur, resolution, lighting)
+- The submission transitions from `draft` → `scanning` → `ocr_processing`
+
+### Offline Support
+
+When the staff app has no network connectivity:
+- Scanned images are saved to local device storage
+- Metadata is queued in an encrypted local database
+- A background sync engine (`workmanager`) periodically attempts upload
+- Once connected, all pending scans are synced automatically
+
+## Phase 2: AI Processing
+
+### OCR Pipeline (Celery Task)
+
+For each scanned page:
+
+1. **Primary OCR** — `qwen-vl-ocr` model extracts text from the document image
+2. **Confidence check** — If confidence < threshold (0.7), the `qwen3-vl-plus` fallback model processes the page
+3. **Results stored** — Both raw OCR text and confidence scores are saved per page
+
+### Classification Pipeline (Celery Task, chained after OCR)
+
+1. **Text aggregation** — All page OCR texts are combined into a single document
+2. **AI classification** — `qwen3.5-flash` identifies the document type from configured categories, returning:
+   - Primary classification with confidence score
+   - Up to 3 alternative classifications
+3. **Template filling** — If confidence is high enough, the AI extracts structured fields into the document type's template schema
+4. **Submission updated** — Classification results and template data are stored
+
+The submission transitions: `ocr_processing` → `pending_classification` → `classified`
+
+## Phase 3: Human Review & Confirmation
+
+### OCR Review
+
+Staff reviews the AI-extracted text against the original scanned images:
+- Side-by-side view of image and extracted text per page
+- Confidence indicator shows quality of extraction
+- Staff can edit/correct any text before proceeding
+
+### Classification Review
+
+Staff reviews the AI's document classification:
+- **If confident (≥ threshold)** — Shows primary classification with confidence %, template fields pre-filled
+- **If uncertain** — Shows alternatives for staff to choose from
+- **Manual override** — Staff can search all document types and select manually
+- **Template editing** — Staff can correct any auto-filled template fields
+
+Staff confirms the final classification. The submission transitions: `classified` → `pending_routing`
+
+## Phase 4: Automated Routing
+
+When staff triggers routing:
+
+1. **Rule lookup** — System finds all `RoutingRule` records for the confirmed document type, ordered by `step_order`
+2. **Clearance validation** — For each department in the route, verifies at least one active staff member has sufficient clearance for the document's security classification
+3. **Workflow creation** — Creates `WorkflowStep` records for each department in sequence
+4. **First step activated** — The first department's step is set to `active` with an expected completion deadline
+
+The submission transitions: `pending_routing` → `in_progress`
+
+### Example Routing
+
+For a **Birth Certificate Application** (`BIRTH_CERT`):
+
+```
+Step 1: Tiếp nhận (Reception)     → 48 hours expected
+Step 2: Phòng Tư pháp (Judicial)  → 72 hours expected
+```
+
+For a **Classified Report** (`CLASSIFIED_RPT`):
+
+```
+Step 1: Tiếp nhận (Reception)       → 48 hours expected
+Step 2: Phòng Nội vụ (Internal)     → 72 hours expected
+Step 3: Lãnh đạo (Leadership)       → 72 hours expected
+```
+
+## Phase 5: Department Review
+
+Each department processes documents sequentially:
+
+### Reviewer Actions
+
+1. **View queue** — Staff sees their department's pending documents, sorted by priority (urgent first) and filtered by their clearance level
+2. **Open review** — Full context: scanned images, OCR text, template data, and annotations from prior departments
+3. **Decision** — Three options:
+   - **Approve** — Step completes, next department activated
+   - **Reject** — Entire submission rejected, citizen notified
+   - **Request Info** — Step pauses, citizen notified to provide additional information
+4. **Annotate** — Add comments with option to make them visible to the citizen
+
+### Cross-Department Consultation
+
+Reviewers can consult other departments without transferring the submission:
+- Select target department and enter a question
+- Creates a `consultation` annotation on the current step
+- The document stays with the current department
+
+### Delay Detection
+
+If `NOW() > expected_complete_by` for any active step:
+- The step is flagged as `delayed`
+- The citizen is notified
+- The department queue highlights delayed items in red
+
+## Phase 6: Completion
+
+When the final department approves:
+1. Submission status → `completed`
+2. Completion timestamp recorded
+3. **Retention calculation** — `retention_expires_at` = `completed_at` + document type's `retention_years` (or permanent for certain document types)
+4. Citizen receives "completed" push notification
+
+If any department rejects:
+1. Submission status → `rejected`
+2. Citizen receives "rejected" notification with the reviewer's citizen-visible annotation
+
+## Citizen Experience
+
+### Authentication
+
+Citizens authenticate via **VNeID** (Vietnam's national digital identity):
+1. Open citizen app → tap "Login with VNeID"
+2. VNeID OAuth flow opens in system browser
+3. Authorization code returned to the app
+4. Backend exchanges code for citizen identity, creates/updates citizen record
+5. App-specific JWT issued for subsequent API calls
+
+### Tracking
+
+The citizen app shows:
+- **Submissions list** — All submissions with status badges (in progress, completed, rejected), filter chips by status
+- **Workflow tracker** — Visual timeline with sequential nodes:
+  - Completed step (green checkmark with timestamp)
+  - Active step (blue highlight with department name)
+  - Pending step (gray dot)
+  - Delayed step (red warning indicator)
+- **Annotations** — Citizen-visible comments from reviewers
+
+### Notifications
+
+Push notifications are sent via Alibaba Cloud EMAS when:
+
+| Event | Notification |
+|-------|-------------|
+| Workflow step advances | "Your submission has moved to [Department Name]" |
+| Information requested | "Additional information needed for your submission" |
+| Submission completed | "Your submission has been approved" |
+| Submission rejected | "Your submission has been rejected" |
+| Step is delayed | "Processing of your submission is delayed" |
+
+## Submission State Machine
+
+```
+draft
+  │
+  ▼ (first page uploaded)
+scanning
+  │
+  ▼ (finalize-scan)
+ocr_processing
+  │
+  ▼ (OCR + classification complete)
+pending_classification
+  │
+  ▼ (staff confirms classification)
+classified
+  │
+  ▼ (staff triggers routing)
+pending_routing
+  │
+  ▼ (workflow created)
+in_progress
+  │
+  ├──────────────────────┐
+  ▼                      ▼
+completed            rejected
+```
+
+## Duplicate Detection
+
+Before classification is confirmed, the system checks for recent duplicate submissions:
+- Same citizen + same document type + submitted within last 30 days + not rejected
+- If found, staff is warned with details of the existing submission
+- Staff can proceed anyway (legitimate re-submission) or cancel

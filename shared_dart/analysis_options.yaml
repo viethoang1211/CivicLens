@@ -1,0 +1,13 @@
+linter:
+  rules:
+    prefer_const_constructors: false
+    avoid_print: true
+    prefer_single_quotes: true
+    unawaited_futures: true
+
+analyzer:
+  errors:
+    missing_return: error
+    dead_code: warning
+  exclude:
+    - "**/*.g.dart"

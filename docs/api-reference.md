@@ -380,6 +380,164 @@ Delete a routing rule.
 
 ---
 
+### Admin — Case Types
+
+#### `GET /v1/staff/admin/case-types`
+
+List all case types. Query parameters: `active_only` (boolean, default `false`).
+
+**Response (200):**
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "name": "Đăng ký hộ kinh doanh",
+      "code": "HOUSEHOLD_BIZ_REG",
+      "is_active": true,
+      "requirement_groups": [
+        {
+          "id": "uuid",
+          "group_order": 1,
+          "label": "Giấy tờ tùy thân",
+          "is_mandatory": true,
+          "slots": [
+            {"id": "uuid", "document_type_id": "uuid", "label": "CMND/CCCD"}
+          ]
+        }
+      ],
+      "routing_steps": [
+        {"step_order": 1, "department_name": "Tiếp nhận", "expected_duration_hours": 48}
+      ]
+    }
+  ]
+}
+```
+
+#### `POST /v1/staff/admin/case-types`
+
+Create a new case type with requirement groups and routing steps (atomic). Requires admin role.
+
+#### `GET /v1/staff/admin/case-types/{id}`
+
+Get case type detail with requirement groups and routing steps.
+
+#### `PUT /v1/staff/admin/case-types/{id}`
+
+Update case type metadata (name, description, retention). Requires admin role.
+
+#### `POST /v1/staff/admin/case-types/{id}/deactivate`
+
+Deactivate a case type (no new dossiers can use it). Requires admin role.
+
+#### `POST /v1/staff/admin/case-types/{id}/activate`
+
+Re-activate a deactivated case type. Requires admin role.
+
+#### `PUT /v1/staff/admin/case-types/{id}/requirement-groups`
+
+Atomic replacement of all requirement groups. Blocked if active dossiers exist for this case type. Requires admin role.
+
+#### `PUT /v1/staff/admin/case-types/{id}/routing-steps`
+
+Atomic replacement of all routing steps. Blocked if active dossiers exist for this case type. Requires admin role.
+
+---
+
+### Dossiers (Case-Based Submission)
+
+#### `POST /v1/staff/dossiers`
+
+Create a new dossier draft for a case type.
+
+**Request:**
+```json
+{
+  "citizen_id_number": "001234567890",
+  "case_type_id": "uuid",
+  "security_classification": 0,
+  "priority": "normal"
+}
+```
+
+**Response (201):**
+```json
+{
+  "id": "uuid",
+  "status": "draft",
+  "case_type_name": "Đăng ký hộ kinh doanh",
+  "requirement_groups": [...],
+  "completeness": {"complete": false, "missing_groups": [...]}
+}
+```
+
+#### `GET /v1/staff/dossiers`
+
+Paginated list of dossiers. Query parameters: `status`, `case_type_id`, `citizen_id`, `page`, `page_size`.
+
+#### `GET /v1/staff/dossiers/{id}`
+
+Get full dossier detail with requirement groups, uploaded documents, completeness status, and AI match results.
+
+#### `POST /v1/staff/dossiers/{id}/documents`
+
+Upload a document to a dossier slot. Multipart form data.
+
+**Request:** `multipart/form-data`
+- `requirement_slot_id`: UUID of the target requirement slot
+- `pages`: Image file(s) (JPEG, PNG). Max 30 pages, max 10 MB per page.
+- `staff_notes` (optional): Staff notes
+
+**Response (201):** Returns the created `DossierDocument` with page list.
+
+Triggers an async AI slot validation task for the uploaded document.
+
+#### `DELETE /v1/staff/dossiers/{id}/documents/{document_id}`
+
+Delete an uploaded document and its scanned pages (including OSS objects). Only allowed in `draft`/`scanning` status.
+
+#### `PATCH /v1/staff/dossiers/{id}/documents/{document_id}/override-ai`
+
+Override AI slot validation decision. Staff confirms the document is correct despite AI flagging a mismatch.
+
+**Request:**
+```json
+{
+  "staff_notes": "Xác nhận tài liệu đúng dù AI phản hồi khác"
+}
+```
+
+#### `POST /v1/staff/dossiers/{id}/submit`
+
+Submit a complete dossier. Checks completeness, generates reference number, creates workflow, routes to first department.
+
+**Response (200):**
+```json
+{
+  "id": "uuid",
+  "reference_number": "HS-20260411-00001",
+  "status": "in_progress",
+  "submitted_at": "2026-04-11T10:00:00Z",
+  "workflow_initiated": true,
+  "first_department": "Tiếp nhận"
+}
+```
+
+**Error (422):** If dossier is incomplete — returns `missing_groups` list.
+
+#### `PATCH /v1/staff/dossiers/{id}`
+
+Update dossier priority.
+
+**Request:**
+```json
+{
+  "priority": "urgent"
+}
+```
+
+---
+
 ## Citizen API (`/v1/citizen/`)
 
 ### Authentication
@@ -503,6 +661,78 @@ List notifications with unread count.
 #### `PUT /v1/citizen/notifications/{id}/read`
 
 Mark a notification as read.
+
+---
+
+### Dossier Tracking
+
+#### `GET /v1/citizen/dossiers`
+
+List the citizen's own dossiers (requires auth).
+
+**Query Parameters:**
+- `status` — Filter by status
+- `page` / `page_size` — Pagination
+
+**Response (200):**
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "reference_number": "HS-20260411-00001",
+      "case_type_name": "Đăng ký hộ kinh doanh",
+      "status": "in_progress",
+      "status_label_vi": "Đang xử lý",
+      "submitted_at": "2026-04-11T10:00:00Z"
+    }
+  ]
+}
+```
+
+#### `GET /v1/citizen/dossiers/{id}`
+
+Get detailed dossier tracking with workflow steps (requires auth, ownership enforced).
+
+**Response (200):**
+```json
+{
+  "id": "uuid",
+  "reference_number": "HS-20260411-00001",
+  "case_type_name": "Đăng ký hộ kinh doanh",
+  "status": "in_progress",
+  "status_label_vi": "Đang xử lý",
+  "submitted_at": "2026-04-11T10:00:00Z",
+  "steps": [
+    {
+      "step_order": 1,
+      "department_name": "Tiếp nhận",
+      "status": "completed",
+      "started_at": "...",
+      "completed_at": "..."
+    },
+    {
+      "step_order": 2,
+      "department_name": "Phòng Tài chính",
+      "status": "active",
+      "started_at": "..."
+    }
+  ]
+}
+```
+
+#### `GET /v1/citizen/dossiers/lookup`
+
+**Public endpoint** — no auth required. Look up dossier status by reference number.
+
+**Query Parameters:**
+- `reference_number` — Format: `HS-YYYYMMDD-NNNNN`
+
+**Response (200):** Same as above, but without the dossier `id` field (prevents UUID enumeration).
+
+**Error (404):** Reference number not found.
+
+> **Note:** This endpoint should be rate-limited (10 req/min/IP) at the infrastructure level.
 
 ---
 

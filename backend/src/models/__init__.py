@@ -10,6 +10,10 @@ from src.models.workflow_step import WorkflowStep
 from src.models.step_annotation import StepAnnotation
 from src.models.audit_log import AuditLogEntry
 from src.models.notification import Notification
+from src.models.case_type import CaseType, CaseTypeRoutingStep
+from src.models.document_requirement import DocumentRequirementGroup, DocumentRequirementSlot
+from src.models.dossier import Dossier
+from src.models.dossier_document import DossierDocument
 
 __all__ = [
     "Base",
@@ -24,4 +28,10 @@ __all__ = [
     "StepAnnotation",
     "AuditLogEntry",
     "Notification",
+    "CaseType",
+    "CaseTypeRoutingStep",
+    "DocumentRequirementGroup",
+    "DocumentRequirementSlot",
+    "Dossier",
+    "DossierDocument",
 ]

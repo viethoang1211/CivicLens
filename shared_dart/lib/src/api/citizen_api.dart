@@ -13,10 +13,11 @@ class CitizenApi {
     required String code,
     String? idNumber,
   }) async {
-    return await _client.post('/v1/citizen/auth/vneid', data: {
+    final response = await _client.post('/v1/citizen/auth/vneid', data: {
       'code': code,
       if (idNumber != null) 'id_number': idNumber,
     });
+    return response.data;
   }
 
   // ── Submissions ───────────────────────────────────────
@@ -29,12 +30,14 @@ class CitizenApi {
   }) async {
     final params = <String, dynamic>{'skip': skip, 'limit': limit};
     if (status != null) params['status'] = status;
-    return await _client.get('/v1/citizen/submissions', queryParameters: params);
+    final response = await _client.get('/v1/citizen/submissions', queryParameters: params);
+    return response.data;
   }
 
   /// Get detailed submission with workflow steps and annotations.
   Future<Map<String, dynamic>> getSubmission(String submissionId) async {
-    return await _client.get('/v1/citizen/submissions/$submissionId');
+    final response = await _client.get('/v1/citizen/submissions/$submissionId');
+    return response.data;
   }
 
   // ── Notifications ─────────────────────────────────────
@@ -47,7 +50,7 @@ class CitizenApi {
     return await _client.get('/v1/citizen/notifications', queryParameters: {
       'skip': skip,
       'limit': limit,
-    });
+    }).then((r) => r.data);
   }
 
   /// Mark a notification as read.

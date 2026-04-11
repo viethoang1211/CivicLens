@@ -24,7 +24,7 @@ class WorkflowTrackerScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: _headerColor(submissionStatus).withValues(alpha: 0.1),
+                color: _headerColor(submissionStatus).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
@@ -79,7 +79,7 @@ class WorkflowTrackerScreen extends StatelessWidget {
                 ),
                 if (!isLast)
                   Expanded(
-                    child: Container(width: 2, color: color.withValues(alpha: 0.3)),
+                    child: Container(width: 2, color: color.withOpacity(0.3)),
                   ),
               ],
             ),

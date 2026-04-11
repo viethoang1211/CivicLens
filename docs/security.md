@@ -138,6 +138,8 @@ Every security-relevant action creates an immutable `AuditLogEntry`:
 | OCR text corrected | Staff ID, submission ID |
 | Classification confirmed | Staff ID, submission ID, document type, method (auto/manual) |
 | Routing triggered | Staff ID, submission ID, workflow steps created |
+| Dossier submitted | Staff ID, dossier ID, reference number, status |
+| AI slot override | Staff ID, dossier document ID, staff notes |
 | Review decision | Staff ID, step ID, result (approved/rejected/needs_info) |
 | Consultation created | Staff ID, step ID, target department |
 | Clearance denied | Staff ID, submission ID, attempted action |

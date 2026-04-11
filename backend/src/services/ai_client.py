@@ -77,5 +77,48 @@ Return a JSON object with the field names as keys and extracted values. Use null
             raise RuntimeError(f"Template fill API error: {response.code} {response.message}")
         return response.output.choices[0].message.content
 
+    def validate_document_slot(self, image_data: bytes, document_type_prompt: str) -> dict:
+        """Binary slot validation: does this image match the expected document type?
+
+        Returns: {"match": bool, "confidence": float, "reason": str}
+        """
+        import base64, json as _json
+
+        image_b64 = base64.b64encode(image_data).decode("utf-8")
+        prompt = (
+            f"Does this image show a document matching the following description?\n"
+            f"Description: {document_type_prompt}\n\n"
+            f"Respond ONLY with valid JSON in this exact format:\n"
+            f'{{ "match": true or false, "confidence": 0.0 to 1.0, "reason": "one sentence explanation" }}'
+        )
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"image": f"data:image/jpeg;base64,{image_b64}"},
+                    {"text": prompt},
+                ],
+            }
+        ]
+        response = MultiModalConversation.call(model=self.OCR_FALLBACK_MODEL, messages=messages)
+        if response.status_code != 200:
+            raise RuntimeError(f"Slot validation API error: {response.code} {response.message}")
+
+        content = response.output.choices[0].message.content
+        raw = content[0]["text"] if isinstance(content, list) else content
+
+        try:
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
+            result = _json.loads(cleaned)
+            return {
+                "match": bool(result.get("match", False)),
+                "confidence": float(result.get("confidence", 0.0)),
+                "reason": str(result.get("reason", "")),
+            }
+        except (ValueError, KeyError, _json.JSONDecodeError):
+            return {"match": False, "confidence": 0.0, "reason": "Unable to parse AI response"}
+
 
 ai_client = AIClient()

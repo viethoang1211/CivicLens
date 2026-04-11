@@ -30,7 +30,7 @@ class _DocumentReviewScreenState extends State<DocumentReviewScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       final resp = await widget.apiClient.get('/v1/staff/workflow-steps/${widget.stepId}');
-      setState(() { _data = resp; _loading = false; });
+      setState(() { _data = resp.data; _loading = false; });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
     }

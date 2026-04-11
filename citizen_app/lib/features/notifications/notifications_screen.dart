@@ -25,7 +25,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       final resp = await widget.apiClient.get('/v1/citizen/notifications');
-      final items = (resp['notifications'] as List)
+      final items = (resp.data['notifications'] as List)
           .map((e) => NotificationDto.fromJson(e as Map<String, dynamic>))
           .toList();
       setState(() { _notifications = items; _loading = false; });

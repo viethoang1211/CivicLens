@@ -167,6 +167,28 @@ class NotificationDto {
       readAt: json['read_at'] != null ? DateTime.parse(json['read_at']) : null,
     );
   }
+
+  NotificationDto copyWith({
+    String? id,
+    String? submissionId,
+    String? type,
+    String? title,
+    String? body,
+    bool? isRead,
+    DateTime? sentAt,
+    DateTime? readAt,
+  }) {
+    return NotificationDto(
+      id: id ?? this.id,
+      submissionId: submissionId ?? this.submissionId,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      isRead: isRead ?? this.isRead,
+      sentAt: sentAt ?? this.sentAt,
+      readAt: readAt ?? this.readAt,
+    );
+  }
 }
 
 class ClassificationResultDto {

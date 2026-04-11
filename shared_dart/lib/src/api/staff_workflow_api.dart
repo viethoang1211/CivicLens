@@ -8,7 +8,8 @@ class StaffWorkflowApi {
 
   /// Get full review context for a workflow step.
   Future<Map<String, dynamic>> getStepDetail(String stepId) async {
-    return await _client.get('/v1/staff/workflow-steps/$stepId');
+    final response = await _client.get('/v1/staff/workflow-steps/$stepId');
+    return response.data;
   }
 
   /// Complete a workflow step with review decision.
@@ -18,7 +19,7 @@ class StaffWorkflowApi {
     required String comment,
     bool targetCitizen = false,
   }) async {
-    return await _client.post(
+    final response = await _client.post(
       '/v1/staff/workflow-steps/$stepId/complete',
       data: {
         'result': result,
@@ -26,6 +27,7 @@ class StaffWorkflowApi {
         'target_citizen': targetCitizen,
       },
     );
+    return response.data;
   }
 
   /// Create a cross-department consultation.
@@ -34,12 +36,13 @@ class StaffWorkflowApi {
     required String targetDepartmentId,
     required String question,
   }) async {
-    return await _client.post(
+    final response = await _client.post(
       '/v1/staff/workflow-steps/$stepId/consultations',
       data: {
         'target_department_id': targetDepartmentId,
         'question': question,
       },
     );
+    return response.data;
   }
 }

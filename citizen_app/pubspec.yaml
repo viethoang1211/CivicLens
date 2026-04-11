@@ -1,0 +1,27 @@
+name: citizen_app
+description: Citizen document submission tracking app
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_dart:
+    path: ../shared_dart
+  dio: ^5.7.0
+  flutter_secure_storage: ^9.2.0
+  aliyun_push: ^0.1.0
+  provider: ^6.1.0
+  go_router: ^14.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

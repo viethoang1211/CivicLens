@@ -12,6 +12,9 @@ from src.models.department import Department
 from src.models.document_requirement import DocumentRequirementGroup, DocumentRequirementSlot
 from src.models.document_type import DocumentType
 from src.models.routing_rule import RoutingRule
+from src.models.staff_member import StaffMember
+from src.models.citizen import Citizen
+from src.security.auth import hash_password
 
 
 DEPARTMENTS = [
@@ -402,12 +405,56 @@ async def seed_case_types(db: AsyncSession, dept_map: dict | None = None) -> dic
             db.add(step)
             created_routing_steps += 1
 
+    # Seed staff members
+    created_staff = 0
+    staff_data = [
+        {"employee_id": "NV001", "full_name": "Nguyễn Văn An", "dept_code": "RECEPTION", "clearance_level": 1, "role": "officer"},
+        {"employee_id": "NV002", "full_name": "Trần Thị Bình", "dept_code": "ADMIN", "clearance_level": 2, "role": "officer"},
+        {"employee_id": "NV003", "full_name": "Lê Văn Cường", "dept_code": "JUDICIAL", "clearance_level": 1, "role": "officer"},
+    ]
+    for s in staff_data:
+        existing = await db.execute(select(StaffMember).where(StaffMember.employee_id == s["employee_id"]))
+        if existing.scalar_one_or_none() is None:
+            dept_id = dept_map.get(s["dept_code"])
+            if dept_id:
+                staff = StaffMember(
+                    id=uuid.uuid4(),
+                    employee_id=s["employee_id"],
+                    full_name=s["full_name"],
+                    department_id=dept_id,
+                    clearance_level=s["clearance_level"],
+                    role=s["role"],
+                    password_hash=hash_password("password123"),
+                )
+                db.add(staff)
+                created_staff += 1
+
+    # Seed citizen
+    created_citizens = 0
+    citizen_data = [
+        {"id_number": "012345678901", "full_name": "Phạm Văn Dũng", "phone_number": "0901234567"},
+    ]
+    for c in citizen_data:
+        existing = await db.execute(select(Citizen).where(Citizen.id_number == c["id_number"]))
+        if existing.scalar_one_or_none() is None:
+            citizen = Citizen(
+                id=uuid.uuid4(),
+                vneid_subject_id=c["id_number"],
+                id_number=c["id_number"],
+                full_name=c["full_name"],
+                phone_number=c["phone_number"],
+            )
+            db.add(citizen)
+            created_citizens += 1
+
     await db.commit()
     return {
         "case_types_created": created_case_types,
         "requirement_groups_created": created_groups,
         "requirement_slots_created": created_slots,
         "case_type_routing_steps_created": created_routing_steps,
+        "staff_created": created_staff,
+        "citizens_created": created_citizens,
     }
 
 
@@ -417,4 +464,12 @@ async def main():
         print(f"Seed complete: {result}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import selectors
+    import sys
+    if sys.platform == "win32":
+        selector = selectors.SelectSelector()
+        loop = asyncio.SelectorEventLoop(selector)
+        loop.run_until_complete(main())
+        loop.close()
+    else:
+        asyncio.run(main())

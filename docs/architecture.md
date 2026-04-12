@@ -48,6 +48,7 @@ The system consists of four deployable components connected through a shared Pos
                     │  - OCR pipeline  │
                     │  - Classification│
                     │  - Template fill │
+                    │  - Slot validate │
                     └──────────────────┘
 ```
 
@@ -67,20 +68,24 @@ backend/
 │   │   ├── staff/           # Staff-facing endpoints
 │   │   │   ├── auth.py            # POST /auth/login → JWT
 │   │   │   ├── submissions.py     # Scan, upload pages, OCR review
+│   │   │   ├── dossier.py         # Case-based dossier CRUD, upload, submit
 │   │   │   ├── classification.py  # AI classification + confirm
 │   │   │   ├── routing.py         # Trigger workflow creation
 │   │   │   ├── departments.py     # Department work queues
 │   │   │   ├── workflow_steps.py  # Review, approve, consult
 │   │   │   ├── admin_document_types.py   # CRUD doc types
-│   │   │   └── admin_routing_rules.py    # CRUD routing rules
+│   │   │   ├── admin_routing_rules.py    # CRUD routing rules
+│   │   │   └── admin_case_types.py       # CRUD case types + requirement groups
 │   │   └── citizen/         # Citizen-facing endpoints
 │   │       ├── auth.py            # VNeID code exchange → JWT
 │   │       ├── submissions.py     # Read-only status + workflow view
+│   │       ├── dossier.py         # Dossier tracking + reference lookup
 │   │       └── notifications.py   # Push notification history
-│   ├── models/              # SQLAlchemy ORM models (11 entities)
+│   ├── models/              # SQLAlchemy ORM models (17 entities)
 │   ├── services/            # Business logic layer
-│   │   ├── ai_client.py          # Qwen VL OCR + classification
+│   │   ├── ai_client.py          # Qwen VL OCR + classification + slot validation
 │   │   ├── oss_client.py         # Alibaba OSS operations
+│   │   ├── dossier_service.py    # Dossier completeness, reference numbers, workflow
 │   │   ├── routing_service.py    # Workflow creation from rules
 │   │   ├── workflow_service.py   # Step advancement + retention
 │   │   ├── review_service.py     # Review validation + processing
@@ -108,9 +113,11 @@ Flutter app for government staff to scan documents, review OCR results, confirm 
 
 Key capabilities:
 - **Camera scanning** with multi-page support and image quality assessment
+- **Case-based dossier workflow** — select a case type, see required document checklist, upload documents per slot
 - **Offline-first** — scans are queued locally and synced via background `workmanager` tasks
 - **Clearance enforcement** — UI filters documents above staff clearance level
 - **Review workflow** — approve/reject/request-info with annotations
+- **AI badge display** — shows AI slot validation results with override capability
 
 ### Citizen Mobile App (`citizen_app/`)
 
@@ -119,7 +126,8 @@ Flutter app for citizens to track their submissions and receive push notificatio
 Key capabilities:
 - **VNeID authentication** — national digital identity integration
 - **Visual workflow tracker** — sequential node display showing completed/active/pending steps
-- **Push notifications** — real-time updates via Alibaba Cloud EMAS when submissions advance
+- **Reference number lookup** — citizens can check dossier status with HS-YYYYMMDD-NNNNN reference number without logging in
+- **Push notifications** — real-time updates via Alibaba Cloud EMAS when dossiers advance
 
 ### Shared Dart Package (`shared_dart/`)
 

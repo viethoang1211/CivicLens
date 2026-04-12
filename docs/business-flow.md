@@ -34,7 +34,35 @@ Citizen          Staff (Reception)       AI System         Department Staff     
 
 ## Phase 1: Document Intake
 
-### Staff Actions
+### Two Intake Modes
+
+The system supports two parallel intake workflows:
+
+#### Mode A: Individual Document Submission (Legacy)
+
+For simple, single-document submissions where case-type grouping is unnecessary:
+
+1. **Create submission** — Staff enters citizen CCCD, selects classification and priority
+2. **Scan pages** — Staff scans document pages
+3. **Finalize scan** — Triggers OCR/classification pipeline
+
+#### Mode B: Case-Based Dossier Submission (Hồ Sơ)
+
+For multi-document cases where a citizen must submit a bundle of interrelated documents:
+
+1. **Select case type** — Staff chooses from configured case types (e.g., Household Business Registration, Birth Certificate). Each case type defines which documents are required.
+
+2. **Create dossier** — Staff enters citizen CCCD, creates a dossier draft. The system returns a checklist of required document groups with their slots.
+
+3. **Upload documents per slot** — For each required document group, staff scans and uploads pages. Each group may have OR-logic: e.g., "CMND **or** CCCD" — fulfilling any one slot satisfies the group.
+
+4. **AI slot validation** — After each upload, an async Celery task validates whether the scanned image matches the expected document type. Results show as badges (green=match, red=mismatch, gray=processing, purple=staff override).
+
+5. **Completeness tracking** — The dossier screen shows real-time completeness: which mandatory groups are satisfied and which are still missing.
+
+6. **Submit dossier** — When all mandatory documents are uploaded, staff submits. A reference number (`HS-YYYYMMDD-NNNNN`) is generated. The dossier is routed to departments based on the case type's routing template.
+
+### Staff Actions (Legacy Mode)
 
 1. **Create submission** — Staff enters the citizen's CCCD (national ID) number, selects a security classification level, and sets priority (normal/urgent).
 
@@ -101,6 +129,8 @@ Staff confirms the final classification. The submission transitions: `classified
 
 ## Phase 4: Automated Routing
 
+### Submission Routing (Legacy)
+
 When staff triggers routing:
 
 1. **Rule lookup** — System finds all `RoutingRule` records for the confirmed document type, ordered by `step_order`
@@ -109,6 +139,17 @@ When staff triggers routing:
 4. **First step activated** — The first department's step is set to `active` with an expected completion deadline
 
 The submission transitions: `pending_routing` → `in_progress`
+
+### Dossier Routing (Case-Based)
+
+When a dossier is submitted:
+
+1. **Case type routing lookup** — System reads `CaseTypeRoutingStep` records for the dossier's case type, ordered by `step_order`
+2. **Clearance validation** — Same check as submission routing
+3. **Workflow creation** — Creates `WorkflowStep` records with `dossier_id` (not `submission_id`)
+4. **Reference number** — Format `HS-YYYYMMDD-NNNNN` where NNNNN is a daily sequential counter
+5. **Retention calculation** — `retention_expires_at` computed from the case type's `retention_years`
+6. **Citizen notification** — Push notification sent to the citizen
 
 ### Example Routing
 
@@ -182,11 +223,13 @@ Citizens authenticate via **VNeID** (Vietnam's national digital identity):
 
 The citizen app shows:
 - **Submissions list** — All submissions with status badges (in progress, completed, rejected), filter chips by status
+- **Dossier list** — All case-based dossiers with status, case type name, and reference number
 - **Workflow tracker** — Visual timeline with sequential nodes:
   - Completed step (green checkmark with timestamp)
   - Active step (blue highlight with department name)
   - Pending step (gray dot)
   - Delayed step (red warning indicator)
+- **Reference number lookup** — Citizens can check dossier status by entering the reference number (`HS-YYYYMMDD-NNNNN`) without logging in. This public endpoint returns only privacy-safe information (status, case type, progress) without exposing the dossier UUID.
 - **Annotations** — Citizen-visible comments from reviewers
 
 ### Notifications

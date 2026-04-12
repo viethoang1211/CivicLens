@@ -91,3 +91,46 @@ async def _send_push(push_token: str, title: str, body: str) -> None:
     Placeholder — real implementation calls EMAS Push API.
     """
     pass
+
+
+async def notify_dossier_status_change(
+    db: AsyncSession,
+    dossier_id: uuid.UUID,
+    new_status: str,
+    rejection_reason: str | None = None,
+) -> None:
+    """Notify the citizen linked to a dossier when its status changes."""
+    from src.models.dossier import Dossier
+
+    dossier_result = await db.execute(select(Dossier).where(Dossier.id == dossier_id))
+    dossier = dossier_result.scalar_one_or_none()
+    if dossier is None:
+        return
+
+    ref = dossier.reference_number or str(dossier_id)
+
+    if new_status == "in_progress":
+        title = f"Hồ sơ {ref} đã được tiếp nhận"
+        body = "Hồ sơ của bạn đang được xử lý. Bạn có thể theo dõi trạng thái qua ứng dụng."
+        notification_type = "dossier_in_progress"
+    elif new_status == "completed":
+        title = f"Hồ sơ {ref} đã hoàn thành"
+        body = "Hồ sơ của bạn đã được xử lý xong. Vui lòng đến nhận kết quả."
+        notification_type = "dossier_completed"
+    elif new_status == "rejected":
+        reason_text = f" Lý do: {rejection_reason}" if rejection_reason else ""
+        title = f"Hồ sơ {ref} bị trả lại"
+        body = f"Hồ sơ của bạn bị trả lại và cần bổ sung.{reason_text}"
+        notification_type = "dossier_rejected"
+    else:
+        return  # No notification for other statuses
+
+    await create_notification(
+        db=db,
+        citizen_id=dossier.citizen_id,
+        submission_id=None,
+        notification_type=notification_type,
+        title=title,
+        body=body,
+    )
+

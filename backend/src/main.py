@@ -11,9 +11,12 @@ from src.api.staff import departments as staff_departments
 from src.api.staff import workflow_steps as staff_workflow_steps
 from src.api.staff import auth as staff_auth
 from src.api.staff import admin_document_types, admin_routing_rules
+from src.api.staff import dossier as staff_dossier
+from src.api.staff import admin_case_types as staff_admin_case_types
 from src.api.citizen import auth as citizen_auth
 from src.api.citizen import submissions as citizen_submissions
 from src.api.citizen import notifications as citizen_notifications
+from src.api.citizen import dossier as citizen_dossier
 
 
 @asynccontextmanager
@@ -44,11 +47,14 @@ app.include_router(staff_departments.router, prefix="/v1/staff/departments", tag
 app.include_router(staff_workflow_steps.router, prefix="/v1/staff/workflow-steps", tags=["staff-workflow-steps"])
 app.include_router(admin_document_types.router, prefix="/v1/staff/admin/document-types", tags=["admin-document-types"])
 app.include_router(admin_routing_rules.router, prefix="/v1/staff/admin/routing-rules", tags=["admin-routing-rules"])
+app.include_router(staff_admin_case_types.router)
+app.include_router(staff_dossier.router)
 
 # Citizen routes
 app.include_router(citizen_auth.router, prefix="/v1/citizen/auth", tags=["citizen-auth"])
 app.include_router(citizen_submissions.router, prefix="/v1/citizen/submissions", tags=["citizen-submissions"])
 app.include_router(citizen_notifications.router, prefix="/v1/citizen/notifications", tags=["citizen-notifications"])
+app.include_router(citizen_dossier.router)
 
 
 @app.exception_handler(Exception)

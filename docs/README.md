@@ -22,17 +22,20 @@ This platform digitizes the entire flow with AI-assisted processing:
 |--------|-------|
 | 5–7 days processing | < 2 days target |
 | Manual handwriting transcription | AI-powered OCR (≥ 85% accuracy on Vietnamese handwriting) |
-| Manual document classification | AI classification with ≥ 90% accuracy |
-| Physical document routing | Automated sequential department routing |
-| Zero citizen visibility | Real-time mobile tracking with push notifications |
+| Manual document classification | AI classification with ≥ 90% accuracy + slot validation |
+| One document at a time | Case-based dossier (hồ sơ) bundles all required documents |
+| Physical document routing | Automated sequential department routing per case type |
+| Zero citizen visibility | Real-time mobile tracking + reference number lookup |
 | No audit trail | 100% immutable audit logging |
 
 ## Key Capabilities
 
+- **Case-Based Dossier Submission (Hồ Sơ)** — Staff select a case type (e.g., household business registration), see a checklist of required documents, scan and upload each one, and submit the entire dossier as a unit. Each case type defines its own required document bundle with OR-group flexibility.
 - **Document Scanning & OCR** — Staff scan physical documents via mobile camera. AI extracts text from handwritten Vietnamese using Qwen VL models, with human-in-the-loop correction.
-- **AI Classification & Template Filling** — Documents are automatically classified by type (birth certificate, household registration, etc.) and structured fields are extracted into templates.
-- **Automated Routing** — Documents flow through configurable sequential department workflows based on document type, with clearance-level enforcement at every step.
-- **Citizen Status Tracking** — Citizens authenticate via VNeID and track their submission progress through a visual workflow timeline with push notifications at each stage.
+- **AI Classification & Slot Validation** — Documents are automatically classified by type (birth certificate, household registration, etc.) and structured fields are extracted into templates. AI also validates whether uploaded documents match their assigned slot in a dossier, with staff override capability.
+- **Configurable Case Types** — Admins create and manage case types, document requirement groups (with OR-logic for alternative documents), and routing step templates — all through the API without code changes.
+- **Automated Routing** — Dossiers and individual documents flow through configurable sequential department workflows, with clearance-level enforcement at every step.
+- **Citizen Status Tracking** — Citizens authenticate via VNeID and track their dossier progress through a visual workflow timeline with push notifications. Citizens can also look up dossier status by reference number (HS-YYYYMMDD-NNNNN) without logging in.
 - **Department Review & Collaboration** — Staff review queued documents, approve/reject/request info, and consult across departments without transferring ownership.
 - **Security & Compliance** — Four-tier classification (Unclassified → Top Secret), attribute-based access control, PostgreSQL Row-Level Security, and immutable audit logs shipped to Alibaba Cloud SLS.
 

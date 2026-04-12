@@ -7,52 +7,57 @@
 │ Citizen  │       │ StaffMember │──────>│ Department │
 └────┬─────┘       └──────┬──────┘       └─────┬──────┘
      │                    │                     │
-     │                    │                     │
-     ▼                    ▼                     ▼
-┌──────────────────────────────┐       ┌──────────────┐
-│        Submission            │       │ RoutingRule  │
-│                              │<──────│              │
-│  citizen_id (FK)             │       │ doc_type_id  │
-│  submitted_by_staff_id (FK)  │       │ dept_id      │
-│  document_type_id (FK)       │       │ step_order   │
-│  security_classification     │       └──────────────┘
-│  status (state machine)      │              │
-│  template_data (JSONB)       │              │
-└──────┬───────────┬───────────┘              │
-       │           │                          │
-       ▼           ▼                          │
-┌─────────────┐  ┌──────────────┐             │
-│ ScannedPage │  │ WorkflowStep │<────────────┘
-│             │  │              │
-│ image_oss_  │  │ dept_id      │
-│   key       │  │ step_order   │
-│ ocr_text    │  │ status       │
-│ confidence  │  │ reviewer_id  │
-└─────────────┘  └──────┬───────┘
-                        │
-                        ▼
-                 ┌──────────────┐
-                 │StepAnnotation│
-                 │              │
-                 │ author_id    │
-                 │ type         │
-                 │ content      │
-                 │ target_       │
-                 │   citizen    │
-                 └──────────────┘
+     │         ┌──────────┴──────────┐          │
+     │         ▼                     ▼          │
+     │  ┌──────────────┐    ┌────────────────┐  │
+     │  │ Submission   │    │    Dossier     │  │
+     │  │              │    │               │  │
+     │  │ citizen_id   │    │ citizen_id    │  │
+     │  │ doc_type_id  │    │ case_type_id  │  │
+     │  │ status       │    │ ref_number    │  │
+     │  └──┬───────┬───┘    │ status        │  │
+     │     │       │        └──┬───────┬────┘  │
+     │     ▼       ▼           │       │       │
+     │ ┌────────┐ ┌─────────┐ │       │       │
+     │ │Scanned │ │Workflow │<┘       │       │
+     │ │Page    │ │Step     │◄────────┘       │
+     │ │        │ │         │                 │
+     │ │oss_key │ │dept_id  │                 │
+     │ │ocr_text│ │status   │                 │
+     │ └────────┘ └────┬────┘                 │
+     │                 ▼                      │
+     │          ┌──────────────┐              │
+     │          │StepAnnotation│              │
+     │          └──────────────┘              │
+     │                                        │
+     │    ┌──────────────┐                    │
+     │    │  CaseType    │                    │
+     │    │              │◄────────────────────┘
+     │    │ code, name   │    CaseTypeRoutingStep
+     │    └──────┬───────┘
+     │           │
+     │    ┌──────┴───────┐
+     │    │  DocReqGroup │
+     │    │              │
+     │    │ is_mandatory │
+     │    └──────┬───────┘
+     │           │
+     │    ┌──────┴───────┐
+     │    │ DocReqSlot   │
+     │    │              │
+     │    │doc_type_id   │
+     │    └──────────────┘
+     │
+     │    ┌────────────────┐
+     ▼    │DossierDocument │──── ScannedPage
+          │                │
+          │ai_match_result │
+          │slot_id         │
+          └────────────────┘
 
 ┌───────────────┐       ┌──────────────┐
 │ AuditLogEntry │       │ Notification │
-│               │       │              │
-│ actor_type    │       │ citizen_id   │
-│ actor_id      │       │ submission_id│
-│ action        │       │ type         │
-│ resource_type │       │ title, body  │
-│ resource_id   │       │ is_read      │
-│ clearance_    │       └──────────────┘
-│   check_result│
-│ metadata (J)  │
-└───────────────┘
+└───────────────┘       └──────────────┘
 ```
 
 ## Core Entities
@@ -162,14 +167,113 @@ Central entity representing a citizen's document submission through its entire l
 
 **Status values:** `draft`, `scanning`, `ocr_processing`, `pending_classification`, `classified`, `pending_routing`, `in_progress`, `completed`, `rejected`
 
-### ScannedPage
+### CaseType
 
-Individual page within a submission, with image storage and OCR results.
+Configurable case type defining a bundle of required documents and a routing template.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | UUID (PK) | Auto-generated |
-| `submission_id` | UUID (FK → Submission) | Parent submission |
+| `name` | String | Display name (Vietnamese) |
+| `code` | String (unique) | Machine code (e.g., `HOUSEHOLD_BIZ_REG`) |
+| `description` | Text | Admin description |
+| `is_active` | Boolean | Only active types available for new dossiers |
+| `retention_years` | Integer | Years to retain after completion |
+| `retention_permanent` | Boolean | If true, retained permanently |
+| `created_at` | Timestamp | |
+| `updated_at` | Timestamp | |
+
+### CaseTypeRoutingStep
+
+Sequential department routing template for a case type (analogous to `RoutingRule` but linked to case types instead of document types).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Auto-generated |
+| `case_type_id` | UUID (FK → CaseType) | Parent case type |
+| `department_id` | UUID (FK → Department) | Target department |
+| `step_order` | SmallInt | Position in sequence |
+| `expected_duration_hours` | Integer | SLA tracking |
+| `required_clearance_level` | SmallInt | Minimum clearance for this step |
+
+**Constraints:** Unique `(case_type_id, step_order)`, Unique `(case_type_id, department_id)`
+
+### DocumentRequirementGroup
+
+A group of alternative documents within a case type. Fulfilling any one slot in the group satisfies the requirement.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Auto-generated |
+| `case_type_id` | UUID (FK → CaseType) | Parent case type |
+| `group_order` | SmallInt | Display order within case type |
+| `label` | String | Group label (e.g., "Giấy tờ tùy thân") |
+| `is_mandatory` | Boolean | If true, must be fulfilled to submit dossier |
+
+**Constraint:** Unique `(case_type_id, group_order)`
+
+### DocumentRequirementSlot
+
+A specific document type option within a requirement group. OR-logic: any fulfilled slot satisfies the group.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Auto-generated |
+| `group_id` | UUID (FK → DocumentRequirementGroup) | Parent group |
+| `document_type_id` | UUID (FK → DocumentType) | Expected document type |
+| `label_override` | String | Custom label (falls back to DocumentType.name) |
+
+**Constraint:** Unique `(group_id, document_type_id)`
+
+### Dossier
+
+A case-based submission containing multiple documents. Central entity for the hồ sơ workflow.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Auto-generated |
+| `reference_number` | String (unique, nullable) | Citizen-facing reference (e.g., `HS-20260411-00001`), assigned on submit |
+| `citizen_id` | UUID (FK → Citizen) | Submitting citizen |
+| `submitted_by_staff_id` | UUID (FK → StaffMember) | Staff who created the dossier |
+| `case_type_id` | UUID (FK → CaseType) | Which case type this dossier follows |
+| `status` | String | `draft`, `scanning`, `ready`, `submitted`, `in_progress`, `completed`, `rejected` |
+| `security_classification` | SmallInt (0–3) | Document sensitivity level |
+| `priority` | String | `low`, `normal`, `high`, `urgent` |
+| `rejection_reason` | Text | Populated when status = `rejected` |
+| `submitted_at` | Timestamp | When dossier was submitted |
+| `completed_at` | Timestamp | When processing completed |
+| `retention_expires_at` | Timestamp | Computed from case type retention rules |
+| `created_at` | Timestamp | |
+| `updated_at` | Timestamp | |
+
+**Constraint:** `CHECK (security_classification BETWEEN 0 AND 3)`
+
+### DossierDocument
+
+One uploaded document within a dossier, linked to a requirement slot.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Auto-generated |
+| `dossier_id` | UUID (FK → Dossier) | Parent dossier |
+| `requirement_slot_id` | UUID (FK → DocumentRequirementSlot, nullable) | Which slot this fulfills |
+| `document_type_id` | UUID (FK → DocumentType, nullable) | Copied from slot for convenience |
+| `ai_match_result` | JSONB | `{"match": bool, "confidence": float, "reason": str}` |
+| `ai_match_overridden` | Boolean | Staff overrode AI decision |
+| `staff_notes` | Text | Staff notes |
+| `created_at` | Timestamp | |
+
+**Constraint:** Unique `(dossier_id, requirement_slot_id)`
+
+### ScannedPage
+
+Individual page within a submission or dossier document, with image storage and OCR results.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID (PK) | Auto-generated |
+| `submission_id` | UUID (FK → Submission, nullable) | Parent submission (legacy mode) |
+| `dossier_document_id` | UUID (FK → DossierDocument, nullable) | Parent dossier document (case-based mode) |
 | `page_number` | SmallInt | Page order (1, 2, 3...) |
 | `image_oss_key` | String | Alibaba Cloud OSS object key |
 | `ocr_raw_text` | Text | Raw AI-extracted text |
@@ -178,14 +282,17 @@ Individual page within a submission, with image storage and OCR results.
 | `image_quality_score` | Float | Image quality assessment score |
 | `synced_at` | Timestamp | When image was synced from offline queue |
 
+**Constraint:** `CHECK ((submission_id IS NULL) <> (dossier_document_id IS NULL))` — exactly one owner
+
 ### WorkflowStep
 
-Single step in the sequential department processing workflow.
+Single step in the sequential department processing workflow. Can belong to either a Submission (legacy) or a Dossier (case-based).
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | UUID (PK) | Auto-generated |
-| `submission_id` | UUID (FK → Submission) | Parent submission |
+| `submission_id` | UUID (FK → Submission, nullable) | Parent submission (legacy mode) |
+| `dossier_id` | UUID (FK → Dossier, nullable) | Parent dossier (case-based mode) |
 | `department_id` | UUID (FK → Department) | Assigned department |
 | `step_order` | SmallInt | Position in sequence |
 | `status` | String | `pending`, `active`, `completed` |
@@ -195,7 +302,10 @@ Single step in the sequential department processing workflow.
 | `expected_complete_by` | Timestamp | SLA deadline |
 | `result` | String | `approved`, `rejected`, `needs_info` (null if pending) |
 
-**Constraint:** Unique `(submission_id, step_order)`
+**Constraints:**
+- `CHECK ((submission_id IS NULL) <> (dossier_id IS NULL))` — exactly one owner
+- Unique `(submission_id, step_order)`
+- Unique `(dossier_id, step_order)`
 
 A step is considered **delayed** when `status = 'active' AND NOW() > expected_complete_by`.
 
@@ -275,6 +385,13 @@ The `app.clearance_level` session variable is set by the API's database dependen
 | `submission` | `citizen_id` | Citizen's submission list |
 | `submission` | `department_id` (via workflow_step) | Department queue |
 | `scanned_page` | `submission_id, page_number` | Page retrieval |
-| `workflow_step` | `submission_id, step_order` (unique) | Step lookup |
+| `scanned_page` | `dossier_document_id` | Document page retrieval |
+| `workflow_step` | `submission_id, step_order` (unique) | Step lookup (legacy) |
+| `workflow_step` | `dossier_id, step_order` (unique) | Step lookup (case-based) |
+| `dossier` | `citizen_id` | Citizen's dossier list |
+| `dossier` | `reference_number` (unique) | Public reference lookup |
+| `dossier` | `case_type_id, status` | Case type filtered queries |
+| `dossier_document` | `dossier_id, requirement_slot_id` (unique) | Slot fulfillment check |
+| `case_type` | `code` (unique) | Seed idempotency |
 | `audit_log_entry` | `actor_id` | Actor audit history |
 | `audit_log_entry` | `resource_type, resource_id` | Resource audit history |

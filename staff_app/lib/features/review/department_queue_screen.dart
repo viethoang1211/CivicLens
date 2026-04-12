@@ -35,7 +35,7 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
       final resp = await widget.apiClient.get(
         '/v1/staff/departments/${widget.departmentId}/queue',
       );
-      final allItems = (resp['items'] as List?)
+      final allItems = (resp.data['items'] as List?)
           ?.cast<Map<String, dynamic>>() ?? [];
 
       // Filter out submissions above staff's clearance level

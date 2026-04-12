@@ -16,3 +16,4 @@ class Citizen(Base, UUIDPrimaryKey, TimestampMixin):
 
     submissions = relationship("Submission", back_populates="citizen")
     notifications = relationship("Notification", back_populates="citizen")
+    dossiers = relationship("Dossier", back_populates="citizen")

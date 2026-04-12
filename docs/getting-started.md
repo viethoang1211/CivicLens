@@ -76,11 +76,13 @@ alembic upgrade head
 
 ### Seed Initial Data
 
-Populates departments, document types, and routing rules for common Vietnamese government documents:
+Populates departments, document types, routing rules, case types (with requirement groups and routing steps) for common Vietnamese government documents:
 
 ```bash
 python -m src.seeds.seed_data
 ```
+
+This seeds 5 case types: `HOUSEHOLD_BIZ_REG`, `COMPANY_REG`, `BIRTH_CERT`, `HOUSEHOLD_REG`, `MARITAL_STATUS` — each with their required document groups and department routing steps. The seeding is idempotent (safe to run multiple times).
 
 ### Start the API Server
 

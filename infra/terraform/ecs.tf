@@ -14,6 +14,13 @@ resource "alicloud_cr_repo" "backend" {
   summary   = "Public Sector Backend API"
 }
 
+resource "alicloud_cr_repo" "mock_vneid" {
+  namespace = alicloud_cr_namespace.main.name
+  name      = "mock-vneid"
+  repo_type = "PRIVATE"
+  summary   = "Mock VNeID OAuth Server (dev/demo only)"
+}
+
 # ──────────────────────────────────────────────
 # ECS Instance — Backend API + Celery Workers
 # ──────────────────────────────────────────────
@@ -39,17 +46,20 @@ resource "alicloud_instance" "backend" {
     region          = var.region
     acr_namespace   = alicloud_cr_namespace.main.name
     acr_registry    = "registry.${var.region}.aliyuncs.com"
-    db_host         = alicloud_db_instance.postgres.connection_string
-    db_port         = "3432"
-    db_name         = var.db_name
-    db_username     = var.db_username
-    db_password     = var.db_password
-    redis_host      = alicloud_kvstore_instance.redis.connection_domain
-    redis_password  = var.redis_password
-    oss_bucket      = alicloud_oss_bucket.documents.bucket
-    oss_endpoint    = "https://oss-${var.region}.aliyuncs.com"
-    jwt_secret_key  = var.jwt_secret_key
-    dashscope_key   = var.dashscope_api_key
+    db_host            = alicloud_db_instance.postgres.connection_string
+    db_port            = "3432"
+    db_name            = var.db_name
+    db_username        = var.db_username
+    db_password        = var.db_password
+    redis_host         = alicloud_kvstore_instance.redis.connection_domain
+    redis_password     = var.redis_password
+    oss_bucket         = alicloud_oss_bucket.documents.bucket
+    oss_endpoint       = "https://oss-${var.region}.aliyuncs.com"
+    jwt_secret_key     = var.jwt_secret_key
+    dashscope_key      = var.dashscope_api_key
+    vneid_jwt_secret   = var.vneid_jwt_secret
+    vneid_client_id    = var.vneid_client_id
+    vneid_client_secret = var.vneid_client_secret
   }))
 
   tags = {

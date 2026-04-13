@@ -41,5 +41,17 @@ services:
     ports:
       - "10911:10911"
 
+  mock-vneid:
+    build: ../mock_vneid
+    ports:
+      - "9000:9000"
+    environment:
+      VNEID_JWT_SECRET: mock-vneid-secret-key
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
 volumes:
   pgdata:

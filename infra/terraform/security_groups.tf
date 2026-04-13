@@ -15,6 +15,15 @@ resource "alicloud_security_group_rule" "backend_http" {
   cidr_ip           = var.vpc_cidr
 }
 
+# Allow mock VNeID from SLB (dev/demo only — remove in production)
+resource "alicloud_security_group_rule" "backend_vneid" {
+  type              = "ingress"
+  ip_protocol       = "tcp"
+  port_range        = "9000/9000"
+  security_group_id = alicloud_security_group.backend.id
+  cidr_ip           = var.vpc_cidr
+}
+
 # Allow SSH (restrict to your IP in production)
 resource "alicloud_security_group_rule" "backend_ssh" {
   type              = "ingress"

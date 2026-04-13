@@ -119,6 +119,29 @@ variable "oss_bucket_name" {
 }
 
 # ──────────────────────────────────────────────
+# VNeID Mock OAuth (dev/demo only)
+# ──────────────────────────────────────────────
+variable "vneid_jwt_secret" {
+  description = "JWT signing secret for mock VNeID OAuth server"
+  type        = string
+  sensitive   = true
+  default     = "mock-vneid-secret-key"
+}
+
+variable "vneid_client_id" {
+  description = "OAuth client_id for VNeID integration"
+  type        = string
+  default     = "citizen-app"
+}
+
+variable "vneid_client_secret" {
+  description = "OAuth client_secret for VNeID integration"
+  type        = string
+  sensitive   = true
+  default     = "mock-secret"
+}
+
+# ──────────────────────────────────────────────
 # Application
 # ──────────────────────────────────────────────
 variable "jwt_secret_key" {

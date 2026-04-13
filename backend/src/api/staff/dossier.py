@@ -403,10 +403,13 @@ async def delete_document(
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Delete OSS objects
+    # Delete stored files
     for page in doc.scanned_pages:
         try:
-            oss_client.bucket.delete_object(page.image_oss_key)
+            if hasattr(oss_client, 'delete'):
+                oss_client.delete(page.image_oss_key)
+            elif hasattr(oss_client, 'bucket'):
+                oss_client.bucket.delete_object(page.image_oss_key)
         except Exception:
             pass
         await db.delete(page)

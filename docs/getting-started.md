@@ -17,9 +17,10 @@ docker compose up -d
 ```
 
 This starts:
-- **PostgreSQL 16** on port `5432` (user: `postgres`, password: `postgres`, db: `public_sector`)
+- **PostgreSQL 16** on port `5432` (user: `dev`, password: `devpassword`, db: `public_sector`)
 - **Redis 7** on port `6379`
 - **RocketMQ 5.3** nameserver on port `9876`, broker on port `10911`
+- **Mock VNeID** OAuth server on port `9000`
 
 Verify all services are healthy:
 
@@ -44,15 +45,24 @@ Create a `.env` file in `backend/` or export these variables:
 
 ```bash
 # Required
-export DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/public_sector"
+export DATABASE_URL="postgresql+asyncpg://dev:devpassword@localhost:5432/public_sector"
 export REDIS_URL="redis://localhost:6379/0"
 export DASHSCOPE_API_KEY="sk-your-model-studio-key"
 
-# Alibaba Cloud OSS
+# Storage backend ("local" for dev, "oss" for production)
+export STORAGE_BACKEND="local"
+export LOCAL_STORAGE_PATH="/tmp/public-sector-uploads"
+
+# Alibaba Cloud OSS (only if STORAGE_BACKEND=oss)
 export OSS_ACCESS_KEY_ID="your-access-key"
 export OSS_ACCESS_KEY_SECRET="your-secret"
 export OSS_BUCKET_NAME="public-sector-docs"
 export OSS_ENDPOINT="https://oss-ap-southeast-1.aliyuncs.com"
+
+# VNeID OAuth (mock server for dev)
+export VNEID_BASE_URL="http://localhost:9000"
+export VNEID_CLIENT_ID="citizen-app"
+export VNEID_CLIENT_SECRET="mock-secret"
 
 # Celery
 export CELERY_BROKER_URL="rocketmq://localhost:9876"
@@ -193,7 +203,11 @@ Verify RocketMQ is running and healthy. Check that `CELERY_BROKER_URL` matches t
 
 ### OSS/Model Studio errors
 
-These require valid Alibaba Cloud credentials. For local development without cloud access, the OCR and classification features will fail gracefully — manual classification can still be used.
+These require valid Alibaba Cloud credentials. For local development without cloud access, set `STORAGE_BACKEND=local` and the OCR/classification features will fail gracefully — manual classification can still be used.
+
+### VNeID mock server not accessible
+
+Ensure the mock-vneid container is running: `docker compose ps`. The mock server listens on port 9000. The backend connects to it via `VNEID_BASE_URL`.
 
 ### Flutter build errors
 

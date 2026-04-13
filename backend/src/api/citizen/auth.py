@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,12 +97,15 @@ async def vneid_auth(body: VNeIDAuthRequest, db: AsyncSession = Depends(get_db))
 
 
 @router.get("/vneid/authorize-url")
-async def get_authorize_url(redirect_uri: str):
+async def get_authorize_url(redirect_uri: str, request: Request):
     """Returns the VNeID OAuth authorize URL for the client to open in browser."""
     import secrets
     state = secrets.token_urlsafe(16)
+    # Build URL through the /vneid/ proxy on the same host so the browser
+    # can reach the mock VNeID login page via port 80 (SLB).
+    base_url = str(request.base_url).rstrip("/")
     url = (
-        f"{settings.vneid_base_url}/authorize"
+        f"{base_url}/vneid/authorize"
         f"?client_id={settings.vneid_client_id}"
         f"&redirect_uri={redirect_uri}"
         f"&response_type=code"

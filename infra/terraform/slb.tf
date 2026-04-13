@@ -26,13 +26,15 @@ resource "alicloud_slb_listener" "http" {
 
 # Mock VNeID listener (dev/demo only — remove in production with real VNeID)
 resource "alicloud_slb_listener" "vneid" {
-  load_balancer_id = alicloud_slb_load_balancer.api.id
-  frontend_port    = 9000
-  backend_port     = 9000
-  protocol         = "http"
-  bandwidth        = 10
-  health_check     = "on"
-  health_check_uri = "/health"
+  load_balancer_id      = alicloud_slb_load_balancer.api.id
+  frontend_port         = 9000
+  backend_port          = 9000
+  protocol              = "http"
+  bandwidth             = 10
+  health_check          = "on"
+  health_check_uri      = "/health"
+  health_check_method   = "get"
+  health_check_http_code = "http_2xx"
 }
 
 # Attach backend ECS to SLB

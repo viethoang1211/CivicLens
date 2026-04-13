@@ -36,17 +36,23 @@ JWT is signed using HS256 with a configurable `JWT_SECRET_KEY`.
 
 ### Citizen Authentication
 
-Citizens authenticate via **VNeID** (Vietnam's national digital identity platform):
+Citizens authenticate via **VNeID** (Vietnam's national digital identity platform) using a standard OAuth 2.0 authorization code flow:
 
-1. Citizen opens app → redirected to VNeID OAuth authorization endpoint
-2. Citizen authenticates with VNeID credentials
-3. Authorization code returned to the app
-4. App sends code to `POST /v1/citizen/auth/vneid`
-5. Backend exchanges code with VNeID for citizen identity
-6. Citizen record created or updated in database
-7. App-specific JWT issued
+1. Citizen opens app → taps "Đăng nhập bằng VNeID"
+2. App calls `GET /v1/citizen/auth/vneid/authorize-url?redirect_uri=citizen-app://auth/callback`
+3. Backend returns a VNeID authorize URL (proxied through `/vneid/authorize`)
+4. App opens the URL in the system browser → VNeID login page displayed
+5. Citizen authenticates (in demo: selects a citizen from dropdown)
+6. VNeID redirects to `citizen-app://auth/callback?code=xxx&state=yyy`
+7. App sends code to `POST /v1/citizen/auth/vneid` with `{"vneid_auth_code": "xxx", "redirect_uri": "citizen-app://auth/callback"}`
+8. Backend exchanges code with VNeID server for access token (`POST /oauth/token`)
+9. Backend fetches citizen identity from VNeID (`GET /oauth/userinfo`)
+10. Citizen record created or updated in database
+11. App-specific JWT issued (access_token + refresh_token)
 
-Citizens have no clearance level — they can only access their own submissions.
+> **Demo mode:** A Mock VNeID OAuth server (`mock_vneid/`) simulates the VNeID flow with 3 pre-loaded citizens. The login page is accessible at `/vneid/authorize` through a reverse proxy in the backend. In production, replace `VNEID_BASE_URL` with the real VNeID endpoint.
+
+Citizens have no clearance level — they can only access their own submissions and dossiers.
 
 ## Authorization
 

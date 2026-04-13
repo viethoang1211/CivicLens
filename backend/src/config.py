@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # Alibaba Cloud OSS
+    storage_backend: str = "local"  # "oss" or "local"
+    local_storage_path: str = "/data/uploads"
     oss_access_key_id: str = ""
     oss_access_key_secret: str = ""
     oss_bucket_name: str = "public-sector-docs"

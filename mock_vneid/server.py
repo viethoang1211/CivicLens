@@ -57,8 +57,8 @@ _access_tokens: dict[str, dict] = {}  # token -> citizen dict
 
 @app.get("/authorize", response_class=HTMLResponse)
 async def authorize_page(
-    client_id: str = Query(...),
-    redirect_uri: str = Query(...),
+    client_id: str = Query("citizen-app"),
+    redirect_uri: str = Query("citizen-app://callback"),
     response_type: str = Query("code"),
     state: str = Query(""),
 ):

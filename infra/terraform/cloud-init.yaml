@@ -1,0 +1,54 @@
+#cloud-config
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-plugin
+
+runcmd:
+  - systemctl enable docker
+  - systemctl start docker
+
+  # Login to ACR (uses instance RAM role or configure manually)
+  - docker login -u _token_ registry.${region}.aliyuncs.com || true
+
+  # Create env file for the backend container
+  - |
+    cat > /opt/public-sector/.env << 'ENVEOF'
+    DATABASE_URL=postgresql+psycopg://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}
+    REDIS_URL=redis://:${redis_password}@${redis_host}:6379/0
+    CELERY_RESULT_BACKEND=redis://:${redis_password}@${redis_host}:6379/1
+    OSS_BUCKET_NAME=${oss_bucket}
+    OSS_ENDPOINT=${oss_endpoint}
+    JWT_SECRET_KEY=${jwt_secret_key}
+    DASHSCOPE_API_KEY=${dashscope_key}
+    ENVEOF
+
+  # Create docker-compose for production
+  - mkdir -p /opt/public-sector
+  - |
+    cat > /opt/public-sector/docker-compose.yml << 'COMPOSEEOF'
+    services:
+      backend:
+        image: ${acr_registry}/${acr_namespace}/backend:latest
+        restart: always
+        ports:
+          - "8000:8000"
+        env_file: .env
+        command: >
+          uvicorn src.main:app
+          --host 0.0.0.0
+          --port 8000
+          --workers 2
+
+      celery-worker:
+        image: ${acr_registry}/${acr_namespace}/backend:latest
+        restart: always
+        env_file: .env
+        command: >
+          celery -A src.workers.celery_app worker
+          --loglevel=info
+          --concurrency=2
+    COMPOSEEOF
+
+  # Start services (image must be pushed first via deploy script)
+  - cd /opt/public-sector && docker compose pull && docker compose up -d || true

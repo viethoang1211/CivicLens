@@ -61,6 +61,7 @@ docs/             Documentation (you are here)
 | [API Reference](api-reference.md) | REST API endpoints for staff and citizen apps |
 | [Data Model](data-model.md) | Database entities, relationships, and constraints |
 | [Security](security.md) | Authentication, authorization, audit logging, data classification |
+| [Deployment](deployment.md) | Alibaba Cloud CLI login, Terraform deploy, CI/CD |
 
 ## Tech Stack
 

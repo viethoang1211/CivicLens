@@ -199,19 +199,34 @@ curl "$SLB_URL/docs"
 echo "Swagger UI: $SLB_URL/docs"
 ```
 
-## Bước 8: Cấu hình Flutter apps
+## Bước 8: Build Flutter apps với API URL
 
-Cập nhật API base URL trong Flutter apps để trỏ tới SLB endpoint:
+`API_BASE_URL` trong cả hai Flutter app là **compile-time constant** (dùng `String.fromEnvironment`), nên phải truyền URL vào lúc `flutter build` qua `--dart-define`.
 
-```dart
-// shared_dart hoặc app config
-const apiBaseUrl = 'http://<SLB_IP>';  // Thay bằng terraform output slb_public_ip
+```bash
+# Lấy SLB URL từ Terraform output
+cd infra/terraform
+SLB_URL=$(terraform output -raw api_base_url)
+# Ví dụ: http://47.xx.xx.xx
+
+# Build citizen app
+cd ../../citizen_app
+flutter build apk --dart-define=API_BASE_URL=$SLB_URL
+# hoặc iOS:
+flutter build ipa --dart-define=API_BASE_URL=$SLB_URL
+
+# Build staff app
+cd ../staff_app
+flutter build apk --dart-define=API_BASE_URL=$SLB_URL
 ```
+
+> **Lưu ý**: Nếu không truyền `--dart-define`, app sẽ dùng `defaultValue: 'http://10.0.2.2:8000'` (Android emulator localhost) — không kết nối được server thật.
 
 Trong production, nên:
 1. Mua domain và trỏ DNS A record tới `slb_public_ip`
 2. Cấu hình HTTPS certificate trên SLB
 3. Đổi SLB listener từ HTTP sang HTTPS
+4. Dùng `https://your-domain.vn` thay cho IP thô trong `--dart-define`
 
 ## Các lệnh hữu ích
 

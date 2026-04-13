@@ -21,6 +21,9 @@ runcmd:
     OSS_ENDPOINT=${oss_endpoint}
     JWT_SECRET_KEY=${jwt_secret_key}
     DASHSCOPE_API_KEY=${dashscope_key}
+    VNEID_BASE_URL=http://mock-vneid:9000
+    VNEID_CLIENT_ID=${vneid_client_id}
+    VNEID_CLIENT_SECRET=${vneid_client_secret}
     ENVEOF
 
   # Create docker-compose for production
@@ -34,6 +37,8 @@ runcmd:
         ports:
           - "8000:8000"
         env_file: .env
+        depends_on:
+          - mock-vneid
         command: >
           uvicorn src.main:app
           --host 0.0.0.0
@@ -48,6 +53,14 @@ runcmd:
           celery -A src.workers.celery_app worker
           --loglevel=info
           --concurrency=2
+
+      mock-vneid:
+        image: ${acr_registry}/${acr_namespace}/mock-vneid:latest
+        restart: always
+        ports:
+          - "9000:9000"
+        environment:
+          VNEID_JWT_SECRET: ${vneid_jwt_secret}
     COMPOSEEOF
 
   # Start services (image must be pushed first via deploy script)

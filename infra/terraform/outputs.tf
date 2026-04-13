@@ -68,3 +68,13 @@ output "acr_registry" {
   description = "Container registry URL for docker push"
   value       = "registry.${var.region}.aliyuncs.com/${alicloud_cr_namespace.main.name}/backend"
 }
+
+output "acr_mock_vneid_registry" {
+  description = "Container registry URL for mock VNeID image"
+  value       = "registry.${var.region}.aliyuncs.com/${alicloud_cr_namespace.main.name}/mock-vneid"
+}
+
+output "vneid_base_url" {
+  description = "Mock VNeID OAuth base URL (via SLB)"
+  value       = "http://${alicloud_slb_load_balancer.api.address}:9000"
+}

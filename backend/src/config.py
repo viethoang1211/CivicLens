@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     celery_broker_url: str = "rocketmq://localhost:9876"
     celery_result_backend: str = "redis://localhost:6379/1"
 
+    # VNeID OAuth
+    vneid_base_url: str = "http://localhost:9000"
+    vneid_client_id: str = "citizen-app"
+    vneid_client_secret: str = "mock-secret"
+
     # JWT
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"

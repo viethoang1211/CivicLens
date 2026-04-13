@@ -3,6 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from src.config import settings
 
 from src.api.staff import submissions as staff_submissions
 from src.api.staff import classification as staff_classification
@@ -17,6 +20,7 @@ from src.api.citizen import auth as citizen_auth
 from src.api.citizen import submissions as citizen_submissions
 from src.api.citizen import notifications as citizen_notifications
 from src.api.citizen import dossier as citizen_dossier
+from src.api import vneid_proxy
 
 
 @asynccontextmanager
@@ -55,6 +59,15 @@ app.include_router(citizen_auth.router, prefix="/v1/citizen/auth", tags=["citize
 app.include_router(citizen_submissions.router, prefix="/v1/citizen/submissions", tags=["citizen-submissions"])
 app.include_router(citizen_notifications.router, prefix="/v1/citizen/notifications", tags=["citizen-notifications"])
 app.include_router(citizen_dossier.router)
+
+# Mock VNeID proxy (routes /vneid/* → mock-vneid container)
+app.include_router(vneid_proxy.router)
+
+# Serve uploaded files when using local storage
+if settings.storage_backend == "local":
+    import os
+    os.makedirs(settings.local_storage_path, exist_ok=True)
+    app.mount("/files", StaticFiles(directory=settings.local_storage_path), name="uploads")
 
 
 @app.exception_handler(Exception)

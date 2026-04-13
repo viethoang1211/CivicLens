@@ -2,7 +2,7 @@
 
 ## High-Level Overview
 
-The system consists of four deployable components connected through a shared PostgreSQL database, Redis cache, and RocketMQ message broker.
+The system consists of four deployable components connected through a shared PostgreSQL database, Redis cache, and optionally a RocketMQ message broker.
 
 ```
 ┌─────────────────────┐     ┌─────────────────────┐
@@ -25,32 +25,26 @@ The system consists of four deployable components connected through a shared Pos
 │   - Auth (JWT)         - Auth (VNeID → JWT)      │
 │   - Submissions        - Submissions (read-only) │
 │   - Classification     - Notifications           │
-│   - Routing                                      │
-│   - Review                                       │
-│   - Admin CRUD                                   │
+│   - Routing            /vneid/*                   │
+│   - Review             - Reverse proxy → Mock     │
+│   - Admin CRUD           VNeID OAuth server       │
 └──────┬──────────┬──────────┬──────────┬──────────┘
        │          │          │          │
        ▼          ▼          ▼          ▼
-┌──────────┐ ┌────────┐ ┌────────┐ ┌──────────────┐
-│PostgreSQL│ │ Redis  │ │RocketMQ│ │ Alibaba Cloud│
-│   16     │ │   7    │ │  5.3   │ │              │
-│          │ │        │ │        │ │ - OSS        │
-│ - Models │ │ - Cache│ │ - Task │ │ - Model      │
-│ - RLS    │ │ - Rate │ │   Queue│ │   Studio     │
-│ - Audit  │ │   Limit│ │        │ │ - EMAS Push  │
-│          │ │        │ │        │ │ - SLS Logs   │
-└──────────┘ └────────┘ └────────┘ └──────────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │  Celery Workers   │
-                    │                  │
-                    │  - OCR pipeline  │
-                    │  - Classification│
-                    │  - Template fill │
-                    │  - Slot validate │
-                    └──────────────────┘
+┌──────────┐ ┌────────┐ ┌────────────┐ ┌──────────────┐
+│PostgreSQL│ │ Redis  │ │Mock VNeID  │ │ Alibaba Cloud│
+│   16     │ │  5/7   │ │(OAuth 2.0) │ │              │
+│          │ │        │ │            │ │ - Model      │
+│ - Models │ │ - Cache│ │ - Authorize│ │   Studio     │
+│ - RLS    │ │ - Rate │ │ - Token    │ │ - EMAS Push  │
+│ - Audit  │ │   Limit│ │ - Userinfo │ │ - SLS Logs   │
+│          │ │        │ │            │ │              │
+└──────────┘ └────────┘ └────────────┘ └──────────────┘
 ```
+
+> **Note:** File storage supports two backends: Alibaba Cloud OSS (production) or local filesystem (demo/dev, configured via `STORAGE_BACKEND=local`). In local mode, uploaded files are stored on the ECS disk at `/data/uploads` and served via a `/files` static mount.
+
+> **Note:** The Celery task broker (RocketMQ) is optional for demo deployments where async AI tasks are not needed.
 
 ## Component Architecture
 
@@ -65,6 +59,7 @@ backend/
 │   ├── config.py            # Pydantic Settings (env-driven config)
 │   ├── dependencies.py      # DB session factory, clearance-aware sessions
 │   ├── api/
+│   │   ├── vneid_proxy.py   # Reverse proxy /vneid/* → mock-vneid container
 │   │   ├── staff/           # Staff-facing endpoints
 │   │   │   ├── auth.py            # POST /auth/login → JWT
 │   │   │   ├── submissions.py     # Scan, upload pages, OCR review
@@ -77,14 +72,15 @@ backend/
 │   │   │   ├── admin_routing_rules.py    # CRUD routing rules
 │   │   │   └── admin_case_types.py       # CRUD case types + requirement groups
 │   │   └── citizen/         # Citizen-facing endpoints
-│   │       ├── auth.py            # VNeID code exchange → JWT
+│   │       ├── auth.py            # VNeID OAuth2 code exchange → JWT
 │   │       ├── submissions.py     # Read-only status + workflow view
 │   │       ├── dossier.py         # Dossier tracking + reference lookup
 │   │       └── notifications.py   # Push notification history
 │   ├── models/              # SQLAlchemy ORM models (17 entities)
 │   ├── services/            # Business logic layer
 │   │   ├── ai_client.py          # Qwen VL OCR + classification + slot validation
-│   │   ├── oss_client.py         # Alibaba OSS operations
+│   │   ├── oss_client.py         # Storage abstraction (OSS or local filesystem)
+│   │   ├── local_storage.py      # Local filesystem storage backend
 │   │   ├── dossier_service.py    # Dossier completeness, reference numbers, workflow
 │   │   ├── routing_service.py    # Workflow creation from rules
 │   │   ├── workflow_service.py   # Step advancement + retention
@@ -103,7 +99,7 @@ backend/
 │       ├── ocr_worker.py         # Async OCR pipeline
 │       └── classification_worker.py  # Async classification
 ├── alembic/                 # Database migrations
-├── Dockerfile               # Production container
+├── Dockerfile               # Production container (ENV PYTHONPATH=/app)
 └── pyproject.toml           # Dependencies + tooling config
 ```
 
@@ -118,6 +114,20 @@ Key capabilities:
 - **Clearance enforcement** — UI filters documents above staff clearance level
 - **Review workflow** — approve/reject/request-info with annotations
 - **AI badge display** — shows AI slot validation results with override capability
+
+### Mock VNeID OAuth Server (`mock_vneid/`)
+
+A lightweight FastAPI server that simulates Vietnam's national digital identity (VNeID) OAuth 2.0 flow for development and demo purposes. In production, this would be replaced by the real VNeID integration.
+
+Endpoints:
+- `GET /authorize` — Login page (citizen selection dropdown in demo mode)
+- `POST /authorize` — Validates selection, redirects with `?code=...`
+- `POST /oauth/token` — Exchanges authorization code for JWT access token
+- `GET /oauth/userinfo` — Returns citizen profile from Bearer token
+- `GET /health` — Health check
+- `GET /.well-known/openid-configuration` — OpenID Connect discovery document
+
+Pre-loaded with 3 demo citizens. The backend accesses this server internally (container-to-container), and the login page is exposed to browsers via a reverse proxy at `/vneid/*`.
 
 ### Citizen Mobile App (`citizen_app/`)
 
@@ -162,10 +172,21 @@ Documents have four security classification levels (0–3). Rather than relying 
 
 All infrastructure is on Alibaba Cloud for **data sovereignty** — Vietnamese government data must remain within approved cloud providers. Specific choices:
 - **Model Studio** — Qwen models with Vietnamese language support, no self-hosted GPU
-- **OSS** — Document image storage with presigned URLs
+- **OSS** — Document image storage with presigned URLs (production); local filesystem storage available for demo/dev
 - **EMAS** — Push notification delivery to citizen devices
 - **SLS** — Long-term audit log retention for compliance
 - **RDS** — Managed PostgreSQL with automated backups
+
+### Storage Backends
+
+The storage layer supports two backends, selected via the `STORAGE_BACKEND` environment variable:
+
+| Backend | Config | Use Case |
+|---------|--------|----------|
+| `oss` | `STORAGE_BACKEND=oss` + OSS credentials | Production — Alibaba Cloud Object Storage |
+| `local` | `STORAGE_BACKEND=local` + `LOCAL_STORAGE_PATH=/data/uploads` | Demo/dev — local filesystem with `/files` static serving |
+
+Both backends implement the same interface: `upload()`, `download()`, `delete()`, `generate_key()`, `get_presigned_url()`. The `oss_client.py` module auto-selects the backend at startup.
 
 ### Why Qwen Models?
 
@@ -179,23 +200,28 @@ All infrastructure is on Alibaba Cloud for **data sovereignty** — Vietnamese g
 ```
 ┌─ Alibaba Cloud Region (ap-southeast-1) ─────────────────┐
 │                                                          │
-│  ┌─ ECS / Container Service ──────────────────────────┐  │
-│  │  FastAPI (N replicas behind SLB)                   │  │
-│  │  Celery Workers (M replicas, autoscaled by queue)  │  │
+│  ┌─ ECS Instance (Docker) ────────────────────────────┐  │
+│  │  FastAPI Backend (:8000)                           │  │
+│  │    ├── /v1/staff/*     ← Staff API                 │  │
+│  │    ├── /v1/citizen/*   ← Citizen API                │  │
+│  │    ├── /vneid/*        ← Reverse proxy → Mock VNeID │  │
+│  │    └── /files/*        ← Static file serving (local)│  │
+│  │  Mock VNeID OAuth (:9000)                          │  │
+│  │  Celery Worker (optional)                          │  │
 │  └────────────────────────────────────────────────────┘  │
 │                                                          │
 │  ┌─ Managed Services ────────────────────────────────┐   │
-│  │  RDS PostgreSQL 16  (primary + read replica)      │   │
-│  │  Tair (Redis-compatible, for cache + sessions)    │   │
-│  │  RocketMQ 5.3 (task broker)                       │   │
-│  │  OSS (document storage)                           │   │
+│  │  RDS PostgreSQL 16  (single instance or replica)  │   │
+│  │  Redis 5.0 (cache + sessions)                     │   │
 │  │  Model Studio (AI inference)                      │   │
-│  │  EMAS (push notifications)                        │   │
-│  │  SLS (audit log storage)                          │   │
 │  └───────────────────────────────────────────────────┘   │
+│                                                          │
+│  SLB → :80 → ECS :8000 (all traffic through backend)    │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
 ```
+
+> **Demo deployment:** Uses local filesystem instead of OSS, and `docker save/scp/load` instead of ACR for image delivery. RocketMQ is optional when Celery async tasks are not needed.
 
 ## Communication Patterns
 

@@ -212,12 +212,17 @@ If any department rejects:
 
 ### Authentication
 
-Citizens authenticate via **VNeID** (Vietnam's national digital identity):
-1. Open citizen app → tap "Login with VNeID"
-2. VNeID OAuth flow opens in system browser
-3. Authorization code returned to the app
-4. Backend exchanges code for citizen identity, creates/updates citizen record
-5. App-specific JWT issued for subsequent API calls
+Citizens authenticate via **VNeID** (Vietnam's national digital identity) using OAuth 2.0 authorization code flow:
+1. Open citizen app → tap "Đăng nhập bằng VNeID"
+2. App requests authorize URL from backend (`GET /v1/citizen/auth/vneid/authorize-url`)
+3. Backend returns a `/vneid/authorize` URL with client_id, redirect_uri, state
+4. App opens URL in system browser → VNeID login page (mock: citizen selector dropdown)
+5. After login, VNeID redirects to `citizen-app://auth/callback?code=xxx&state=yyy`
+6. App sends authorization code to backend (`POST /v1/citizen/auth/vneid`)
+7. Backend exchanges code with VNeID for access token and citizen identity
+8. Citizen record created/updated, app-specific JWT issued
+
+> **Demo mode:** The Mock VNeID server pre-loads 3 citizens (Phạm Văn Dũng, Nguyễn Thị Mai, Trần Văn Hùng). Login page is accessible at `/vneid/authorize`.
 
 ### Tracking
 

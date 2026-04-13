@@ -538,19 +538,61 @@ Update dossier priority.
 
 ---
 
+## VNeID Proxy (`/vneid/`)
+
+The backend includes a reverse proxy that routes `/vneid/*` requests to the Mock VNeID OAuth server. This allows the VNeID login page to be accessed through the same SLB endpoint (port 80) as the backend API, avoiding the need to expose separate ports.
+
+#### `GET /vneid/authorize`
+
+Renders the VNeID login page. In production, this would redirect to the real VNeID OAuth endpoint.
+
+**Query Parameters:**
+- `client_id` — OAuth client ID (default: `citizen-app`)
+- `redirect_uri` — Callback URI (default: `citizen-app://callback`)
+- `response_type` — Must be `code` (default: `code`)
+- `state` — CSRF state token
+
+**Response (200):** HTML login page with citizen selection dropdown (demo mode).
+
+#### `GET /vneid/health`
+
+Health check for the Mock VNeID service.
+
+**Response (200):**
+```json
+{"status": "ok", "service": "mock-vneid"}
+```
+
+---
+
 ## Citizen API (`/v1/citizen/`)
 
 ### Authentication
 
+#### `GET /v1/citizen/auth/vneid/authorize-url`
+
+Returns the VNeID OAuth authorize URL for the client to open in a browser.
+
+**Query Parameters:**
+- `redirect_uri` — The app's callback URI (e.g., `citizen-app://auth/callback`)
+
+**Response (200):**
+```json
+{
+  "authorize_url": "http://43.98.196.158/vneid/authorize?client_id=citizen-app&redirect_uri=citizen-app://auth/callback&response_type=code&state=Jxhyv_C91Fbuiu3XeqR-3g",
+  "state": "Jxhyv_C91Fbuiu3XeqR-3g"
+}
+```
+
 #### `POST /v1/citizen/auth/vneid`
 
-Exchange VNeID authorization code for app JWT.
+Exchange VNeID authorization code for app JWT. The backend exchanges the code with the VNeID OAuth server for an access token, fetches citizen identity from the userinfo endpoint, then issues an app-specific JWT.
 
 **Request:**
 ```json
 {
-  "code": "vneid-auth-code",
-  "id_number": "001234567890"
+  "vneid_auth_code": "KxY3...authorization-code",
+  "redirect_uri": "citizen-app://auth/callback"
 }
 ```
 
@@ -558,9 +600,13 @@ Exchange VNeID authorization code for app JWT.
 ```json
 {
   "access_token": "eyJ...",
-  "token_type": "bearer",
-  "citizen_id": "uuid",
-  "full_name": "Nguyen Thi C"
+  "refresh_token": "eyJ...",
+  "expires_in": 3600,
+  "citizen": {
+    "id": "uuid",
+    "full_name": "Phạm Văn Dũng",
+    "id_number": "012345678901"
+  }
 }
 ```
 

@@ -46,7 +46,8 @@ backend/          Python 3.12 — FastAPI, Celery, SQLAlchemy
 staff_app/        Flutter 3.24+ — Government staff mobile app
 citizen_app/      Flutter 3.24+ — Citizen-facing mobile app
 shared_dart/      Shared Dart — API client & DTOs
-infra/            Docker Compose — Local development infrastructure
+mock_vneid/       Python 3.12 — Mock VNeID OAuth 2.0 server (demo)
+infra/            Docker Compose + Terraform — Local dev & cloud infrastructure
 specs/            Speckit — Specifications, plans, tasks
 docs/             Documentation (you are here)
 ```
@@ -68,14 +69,16 @@ docs/             Documentation (you are here)
 | Layer | Technology | Rationale |
 |-------|-----------|-----------|
 | Backend API | Python 3.12 + FastAPI | Async-first, auto-generated OpenAPI docs |
-| Task Queue | Celery + RocketMQ | Long-running AI tasks (OCR, classification) |
+| Task Queue | Celery + RocketMQ (optional) | Long-running AI tasks (OCR, classification) |
 | Database | PostgreSQL 16 | Row-Level Security for clearance enforcement |
-| Cache | Redis 7 / Alibaba Cloud Tair | Session cache, rate limiting |
+| Cache | Redis 5+ / Alibaba Cloud Tair | Session cache, rate limiting |
 | AI Models | Qwen VL (OCR), Qwen3.5-Flash (classification) | Vietnamese language support, Alibaba Cloud-native |
-| Object Storage | Alibaba Cloud OSS | Scanned document image storage |
+| Object Storage | Local filesystem or Alibaba Cloud OSS | Scanned document image storage (configurable) |
+| Auth (Citizen) | Mock VNeID OAuth 2.0 server | Simulates Vietnam's national identity platform |
 | Mobile Apps | Flutter 3.24+ (Dart) | Cross-platform, strong camera/offline support |
 | Push Notifications | Alibaba Cloud EMAS | Citizen status update delivery |
 | Audit Storage | Alibaba Cloud SLS | Long-term compliance log retention |
+| Infrastructure | Terraform (Alibaba Cloud) | VPC, ECS, RDS, Redis, SLB — fully automated |
 
 ## License
 

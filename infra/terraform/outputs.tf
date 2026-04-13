@@ -35,17 +35,6 @@ output "redis_url" {
   sensitive   = true
 }
 
-# ── OSS ──
-output "oss_bucket" {
-  description = "OSS bucket name"
-  value       = alicloud_oss_bucket.documents.bucket
-}
-
-output "oss_endpoint" {
-  description = "OSS endpoint URL"
-  value       = "https://oss-${var.region}.aliyuncs.com"
-}
-
 # ── ECS ──
 output "ecs_public_ip" {
   description = "Backend ECS public IP"
@@ -61,17 +50,6 @@ output "slb_public_ip" {
 output "api_base_url" {
   description = "API base URL via SLB"
   value       = "http://${alicloud_slb_load_balancer.api.address}"
-}
-
-# ── ACR ──
-output "acr_registry" {
-  description = "Container registry URL for docker push"
-  value       = "registry.${var.region}.aliyuncs.com/${alicloud_cr_namespace.main.name}/backend"
-}
-
-output "acr_mock_vneid_registry" {
-  description = "Container registry URL for mock VNeID image"
-  value       = "registry.${var.region}.aliyuncs.com/${alicloud_cr_namespace.main.name}/mock-vneid"
 }
 
 output "vneid_base_url" {

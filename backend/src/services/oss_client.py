@@ -27,4 +27,11 @@ class OSSClient:
         return result.read()
 
 
-oss_client = OSSClient()
+def _create_storage_client():
+    if settings.storage_backend == "oss":
+        return OSSClient()
+    from src.services.local_storage import LocalStorageClient
+    return LocalStorageClient()
+
+
+oss_client = _create_storage_client()

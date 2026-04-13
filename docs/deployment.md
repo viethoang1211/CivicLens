@@ -9,19 +9,28 @@ Hướng dẫn cài đặt Alibaba Cloud CLI, xác thực, và deploy hạ tần
 │                                                        │
 │  SLB (Internet) ──► ECS Instance ──► Docker            │
 │       :80              │              ├── FastAPI :8000 │
+│                        │              │   ├── /v1/*     │
+│                        │              │   ├── /vneid/*  │
+│                        │              │   └── /files/*  │
+│                        │              ├── Mock VNeID    │
+│                        │              │   :9000         │
 │                        │              └── Celery Worker │
+│                        │                  (optional)    │
 │                        │                               │
 │                        ▼                               │
 │  ┌──────────────────────────────────────────────────┐  │
-│  │  RDS PostgreSQL 16   │  Redis 7   │  OSS Bucket  │  │
+│  │  RDS PostgreSQL 16   │  Redis 5.0                │  │
 │  └──────────────────────────────────────────────────┘  │
 │                                                        │
-│  ACR (Container Registry) — lưu Docker image backend   │
+│  File storage: /data/uploads trên ECS                  │
+│  (hoặc Alibaba Cloud OSS nếu STORAGE_BACKEND=oss)     │
 └────────────────────────────────────────────────────────┘
 
 Flutter apps (staff_app, citizen_app) chạy trên thiết bị người dùng,
-kết nối tới SLB endpoint qua HTTPS.
+kết nối tới SLB endpoint qua HTTP/HTTPS.
 ```
+
+> **Lưu ý:** Deploy hiện tại dùng `docker save/scp/load` thay vì ACR (Container Registry), và local filesystem thay vì OSS. Phù hợp cho demo/dev.
 
 ## Bước 0: Cài đặt công cụ
 
@@ -54,10 +63,9 @@ brew install aliyun-cli
 aliyun version
 ```
 
-### Docker (để build & push image)
+### Docker (để build image)
 
 ```bash
-# Kiểm tra Docker đã cài
 docker --version
 ```
 
@@ -97,15 +105,28 @@ ecs_password      = "MatKhau_ECS_Manh!"
 jwt_secret_key    = "chuoi-ngau-nhien-dai-64-ky-tu-o-day"
 dashscope_api_key = "sk-your-model-studio-key"
 
+# VNeID mock server:
+vneid_jwt_secret    = "mock-vneid-secret-key"
+vneid_client_id     = "citizen-app"
+vneid_client_secret = "mock-secret"
+
 # Tùy chọn:
 environment       = "dev"       # dev | staging | prod
 region            = "ap-southeast-1"
-availability_zone = "ap-southeast-1a"
+availability_zone = "ap-southeast-1c"
 ```
 
 ### Yêu cầu mật khẩu ECS
 
 Mật khẩu ECS yêu cầu: 8–30 ký tự, ít nhất 3 trong 4 loại (chữ hoa, chữ thường, số, ký tự đặc biệt).
+
+### RDS Service Linked Role
+
+Trước khi tạo RDS, cần tạo Service Linked Role (chỉ cần 1 lần):
+
+```bash
+aliyun rds CreateServiceLinkedRole --ServiceLinkedRole AliyunServiceRoleForRdsPgsqlOnEcs --RegionId ap-southeast-1
+```
 
 ## Bước 3: Khởi tạo & Deploy hạ tầng
 
@@ -125,78 +146,150 @@ terraform apply
 Quá trình mất ~5–10 phút. Sau khi xong, Terraform hiển thị outputs:
 
 ```
-api_base_url         = "http://47.xx.xx.xx"
-acr_registry         = "registry.ap-southeast-1.aliyuncs.com/publicsector/backend"
+api_base_url         = "http://43.xx.xx.xx"
 ecs_public_ip        = "47.xx.xx.xx"
-rds_connection_string = "rm-xxxxxxxxxx.pg.rds.aliyuncs.com"
-slb_public_ip        = "47.xx.xx.xx"
+slb_public_ip        = "43.xx.xx.xx"
+database_url         = "postgresql+psycopg://..."
+redis_url            = "redis://...:6379/0"
+vneid_base_url       = "http://mock-vneid:9000"
 ```
 
-## Bước 4: Đăng nhập Container Registry
+## Bước 4: Setup SSH key
 
 ```bash
-# Lấy registry URL từ Terraform output
-ACR_REGISTRY=$(terraform output -raw acr_registry)
+ECS_IP=$(cd infra/terraform && terraform output -raw ecs_public_ip)
 
-# Đăng nhập ACR (dùng Access Key làm password)
-docker login registry.ap-southeast-1.aliyuncs.com
-# Username: Access Key ID (LTAI5t...)
-# Password: Access Key Secret
+# Copy SSH key lên ECS (sử dụng mật khẩu ECS)
+ssh-copy-id root@$ECS_IP
+
+# Test SSH (không cần mật khẩu)
+ssh root@$ECS_IP "echo OK"
 ```
 
-## Bước 5: Build & Deploy backend
+## Bước 5: Build & Deploy Docker images
 
-### Cách 1: Dùng deploy script (khuyến nghị)
+Không cần Container Registry — build image trên máy local, transfer qua SSH:
+
+### Build images
+
+```bash
+# Backend
+cd backend
+docker build -t ps-backend:latest .
+
+# Mock VNeID
+cd ../mock_vneid
+docker build -t ps-mock-vneid:latest .
+```
+
+### Transfer images tới ECS
+
+```bash
+ECS_IP=$(cd infra/terraform && terraform output -raw ecs_public_ip)
+
+# Export & transfer (nén pipeline, không cần file tạm)
+docker save ps-backend:latest | gzip | ssh root@$ECS_IP "gunzip | docker load"
+docker save ps-mock-vneid:latest | gzip | ssh root@$ECS_IP "gunzip | docker load"
+```
+
+### Tạo file .env trên ECS
 
 ```bash
 cd infra/terraform
-./deploy.sh           # Deploy tag :latest
-./deploy.sh v1.0.0    # Deploy version cụ thể
+
+# Generate .env từ terraform outputs
+python3 -c "
+import json, subprocess
+def tf(key):
+    return subprocess.check_output(['terraform','output','-raw',key]).decode().strip()
+
+lines = [
+    f'DATABASE_URL={tf(\"database_url\")}',
+    f'REDIS_URL={tf(\"redis_url\")}',
+    f'DASHSCOPE_API_KEY={tf(\"dashscope_api_key\")}',
+    f'JWT_SECRET_KEY={tf(\"jwt_secret_key\")}',
+    f'VNEID_BASE_URL=http://mock-vneid:9000',
+    f'VNEID_JWT_SECRET={tf(\"vneid_jwt_secret\")}',
+    'STORAGE_BACKEND=local',
+    'LOCAL_STORAGE_PATH=/data/uploads',
+    'CELERY_BROKER_URL=redis://localhost:6379/1',
+    'CELERY_RESULT_BACKEND=redis://localhost:6379/2',
+]
+print(chr(10).join(lines))
+" > /tmp/ps-env
+
+scp /tmp/ps-env root@$ECS_IP:/opt/public-sector/.env
 ```
 
-Script tự động:
-1. Build Docker image từ `backend/`
-2. Push lên ACR
-3. SSH vào ECS và restart containers
-
-### Cách 2: Thủ công
+### Tạo docker-compose.yml trên ECS
 
 ```bash
-# Build
-cd backend
-docker build -t "$ACR_REGISTRY:latest" .
+ssh root@$ECS_IP "cat > /opt/public-sector/docker-compose.yml" << 'COMPOSE'
+services:
+  backend:
+    image: ps-backend:latest
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      - mock-vneid
 
-# Push
-docker push "$ACR_REGISTRY:latest"
+  mock-vneid:
+    image: ps-mock-vneid:latest
+    restart: always
+    environment:
+      VNEID_JWT_SECRET: ${VNEID_JWT_SECRET:-mock-vneid-secret-key}
 
-# SSH vào ECS và deploy
-ECS_IP=$(cd ../infra/terraform && terraform output -raw ecs_public_ip)
-ssh root@$ECS_IP "cd /opt/public-sector && docker compose pull && docker compose up -d"
+volumes:
+  uploads:
+COMPOSE
+```
+
+### Start containers
+
+```bash
+ssh root@$ECS_IP "cd /opt/public-sector && docker compose up -d"
 ```
 
 ## Bước 6: Chạy migration & seed data
 
 ```bash
-ECS_IP=$(terraform output -raw ecs_public_ip)
+ECS_IP=$(cd infra/terraform && terraform output -raw ecs_public_ip)
+
+# RDS cần GRANT quyền trước (chỉ lần đầu)
+# Kết nối RDS qua psql và chạy:
+#   GRANT ALL ON SCHEMA public TO ps_admin;
 
 # Chạy Alembic migration
-ssh root@$ECS_IP "docker compose -f /opt/public-sector/docker-compose.yml exec backend alembic upgrade head"
+ssh root@$ECS_IP "cd /opt/public-sector && docker compose exec backend alembic upgrade head"
 
-# Seed data
-ssh root@$ECS_IP "docker compose -f /opt/public-sector/docker-compose.yml exec backend python -m src.seeds.seed_data"
+# Seed data (idempotent — chạy bao nhiêu lần cũng được)
+ssh root@$ECS_IP "cd /opt/public-sector && docker compose exec backend python -m src.seeds.seed_data"
 ```
 
 ## Bước 7: Kiểm tra
 
 ```bash
-# Lấy API URL
-SLB_URL=$(terraform output -raw api_base_url)
+SLB_IP=$(cd infra/terraform && terraform output -raw slb_public_ip)
 
-# Health check
-curl "$SLB_URL/docs"
+# Swagger UI
+echo "Swagger UI: http://$SLB_IP/docs"
 
-# Hoặc truy cập trực tiếp
-echo "Swagger UI: $SLB_URL/docs"
+# Backend API
+curl -s "http://$SLB_IP/docs" | head -1
+
+# VNeID health
+curl -s "http://$SLB_IP/vneid/health"
+# → {"status":"ok","service":"mock-vneid"}
+
+# VNeID login page (mở trong browser)
+echo "VNeID login: http://$SLB_IP/vneid/authorize"
+
+# Auth URL endpoint
+curl -s "http://$SLB_IP/v1/citizen/auth/vneid/authorize-url?redirect_uri=citizen-app://callback"
 ```
 
 ## Bước 8: Build Flutter apps với API URL
@@ -206,21 +299,18 @@ echo "Swagger UI: $SLB_URL/docs"
 ```bash
 # Lấy SLB URL từ Terraform output
 cd infra/terraform
-SLB_URL=$(terraform output -raw api_base_url)
-# Ví dụ: http://47.xx.xx.xx
+SLB_IP=$(terraform output -raw slb_public_ip)
 
 # Build citizen app
 cd ../../citizen_app
-flutter build apk --dart-define=API_BASE_URL=$SLB_URL
-# hoặc iOS:
-flutter build ipa --dart-define=API_BASE_URL=$SLB_URL
+flutter build apk --dart-define=API_BASE_URL=http://$SLB_IP
 
 # Build staff app
 cd ../staff_app
-flutter build apk --dart-define=API_BASE_URL=$SLB_URL
+flutter build apk --dart-define=API_BASE_URL=http://$SLB_IP
 ```
 
-> **Lưu ý**: Nếu không truyền `--dart-define`, app sẽ dùng `defaultValue: 'http://10.0.2.2:8000'` (Android emulator localhost) — không kết nối được server thật.
+> **Lưu ý**: Nếu không truyền `--dart-define`, app sẽ dùng `defaultValue: 'http://localhost:8000'` — không kết nối được server thật.
 
 Trong production, nên:
 1. Mua domain và trỏ DNS A record tới `slb_public_ip`
@@ -228,11 +318,26 @@ Trong production, nên:
 3. Đổi SLB listener từ HTTP sang HTTPS
 4. Dùng `https://your-domain.vn` thay cho IP thô trong `--dart-define`
 
+## Cập nhật code (re-deploy)
+
+Sau khi sửa code, deploy lại bằng:
+
+```bash
+ECS_IP=$(cd infra/terraform && terraform output -raw ecs_public_ip)
+
+# Rebuild image
+cd backend && docker build -t ps-backend:latest .
+
+# Transfer & restart
+docker save ps-backend:latest | gzip | ssh root@$ECS_IP "gunzip | docker load"
+ssh root@$ECS_IP "cd /opt/public-sector && docker compose up -d --force-recreate backend"
+```
+
 ## Các lệnh hữu ích
 
 ```bash
 # Xem tất cả outputs
-terraform output
+cd infra/terraform && terraform output
 
 # Xem output nhạy cảm (database URL, redis URL)
 terraform output -raw database_url
@@ -244,6 +349,10 @@ terraform show
 # Cập nhật hạ tầng sau khi sửa .tf files
 terraform plan && terraform apply
 
+# Xem logs trên ECS
+ssh root@$ECS_IP "cd /opt/public-sector && docker compose logs -f backend"
+ssh root@$ECS_IP "cd /opt/public-sector && docker compose logs -f mock-vneid"
+
 # Hủy toàn bộ hạ tầng (CẨN THẬN!)
 terraform destroy
 ```
@@ -252,14 +361,25 @@ terraform destroy
 
 ### Không kết nối được RDS
 
-- Kiểm tra security group cho phép port PostgreSQL
+- Kiểm tra security group cho phép port PostgreSQL (5432)
 - Kiểm tra `security_ips` của RDS chứa VPC CIDR
-- `aliyun rds DescribeDBInstanceNetInfo --DBInstanceId <id>`
+- Chạy: `GRANT ALL ON SCHEMA public TO ps_admin;` nếu lần đầu
 
-### Docker pull thất bại trên ECS
+### Alembic: ModuleNotFoundError
 
-- Kiểm tra ECS có internet access (`internet_max_bandwidth_out > 0`)
-- Kiểm tra ACR login: `docker login registry.ap-southeast-1.aliyuncs.com`
+Đảm bảo `ENV PYTHONPATH=/app` có trong `backend/Dockerfile`.
+
+### Alembic kết nối localhost thay vì RDS
+
+Đảm bảo `backend/alembic/env.py` đọc `DATABASE_URL` từ env var (đã có sẵn).
+
+### bcrypt lỗi ValueError
+
+Đảm bảo `bcrypt==4.0.1` trong `pyproject.toml` (passlib compatibility).
+
+### SLB port khác 80 không accessible
+
+SLB spec `slb.s1.small` có thể chỉ hỗ trợ port 80/443. Sử dụng reverse proxy `/vneid/*` trên backend thay vì expose port riêng.
 
 ### Terraform state bị lỗi
 
@@ -275,11 +395,10 @@ terraform state rm alicloud_instance.backend
 
 | Resource | Spec | ~USD/tháng |
 |----------|------|-----------|
-| ECS | t6-c1m1.large (2C/2G) | ~15 |
-| RDS PostgreSQL | pg.n2e.small.1 (1C/1G, 20GB) | ~20 |
-| Redis | micro (1GB) | ~15 |
-| SLB | s1.small | ~5 |
-| OSS | Pay-per-use | ~1 |
-| **Tổng** | | **~$56/tháng** |
+| ECS | ecs.t5-lc1m1.small (1C/1G) | ~10 |
+| RDS PostgreSQL | pg.n2.2c.1m (2C/1G, 20GB cloud_essd) | ~20 |
+| Redis | redis.master.micro.default (1GB, v5.0) | ~15 |
+| SLB | slb.s1.small | ~5 |
+| **Tổng** | | **~$50/tháng** |
 
-> Chi phí thực tế phụ thuộc vào traffic và dung lượng lưu trữ. Xem [Alibaba Cloud Pricing Calculator](https://www.alibabacloud.com/pricing-calculator) để ước tính chính xác.
+> Chi phí thực tế phụ thuộc vào traffic và dung lượng lưu trữ.

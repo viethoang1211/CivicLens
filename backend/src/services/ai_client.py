@@ -122,3 +122,59 @@ Return a JSON object with the field names as keys and extracted values. Use null
 
 
 ai_client = AIClient()
+
+
+import re
+
+# Vietnamese diacritics pattern: letters with diacritical marks common in Vietnamese
+_VIETNAMESE_PATTERN = re.compile(
+    r"[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡ"
+    r"ùúụủũưừứựửữỳýỵỷỹđÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴÈÉẸẺẼÊỀẾỆỂỄÌÍỊỈĨ"
+    r"ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠÙÚỤỦŨƯỪỨỰỬỮỲÝỴỶỸĐ]"
+)
+
+# Structural patterns: dates, numbers, IDs common in Vietnamese government docs
+_DATE_PATTERN = re.compile(r"\d{1,2}[/\-\.]\d{1,2}[/\-\.]\d{2,4}")
+_NUMBER_PATTERN = re.compile(r"\d{6,}")  # 6+ digit sequences (CCCD, phone, etc.)
+
+
+def estimate_ocr_confidence(text: str) -> float:
+    """Estimate OCR output quality based on text characteristics.
+
+    Returns a confidence score between 0.0 and 1.0:
+    - 0.0: empty or error text
+    - 0.2: very short text (< 20 chars), likely garbage
+    - 0.3: text with few Vietnamese characters (encoding issues)
+    - 0.7: reasonable Vietnamese text
+    - 0.85: text with structural patterns (dates, numbers, names)
+    """
+    if not text or not text.strip():
+        return 0.0
+
+    stripped = text.strip()
+
+    # Very short text is likely garbage or partial extraction
+    if len(stripped) < 20:
+        return 0.2
+
+    # Count Vietnamese diacritical characters
+    viet_chars = len(_VIETNAMESE_PATTERN.findall(stripped))
+    total_alpha = sum(1 for c in stripped if c.isalpha())
+
+    # If text has alphabetic content but very few Vietnamese characters → encoding issue
+    if total_alpha > 10 and viet_chars / max(total_alpha, 1) < 0.05:
+        return 0.3
+
+    # Check for structural patterns that indicate a well-extracted document
+    has_dates = bool(_DATE_PATTERN.search(stripped))
+    has_numbers = bool(_NUMBER_PATTERN.search(stripped))
+    has_viet_content = viet_chars >= 5
+
+    if has_dates and has_numbers and has_viet_content:
+        return 0.85
+
+    if has_viet_content:
+        return 0.7
+
+    # Fallback: some text but not clearly Vietnamese or structured
+    return 0.5

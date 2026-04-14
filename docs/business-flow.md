@@ -94,8 +94,9 @@ When the staff app has no network connectivity:
 For each scanned page:
 
 1. **Primary OCR** — `qwen-vl-ocr` model extracts text from the document image
-2. **Confidence check** — If confidence < threshold (0.7), the `qwen3-vl-plus` fallback model processes the page
-3. **Results stored** — Both raw OCR text and confidence scores are saved per page
+2. **Confidence estimation** — Since the dashscope vision API does not return explicit confidence scores, a heuristic estimates quality from the extracted text: Vietnamese diacritics ratio, structural patterns (dates, ID numbers), and text length. Scores range from 0.0 (empty) to 0.85 (well-structured Vietnamese document).
+3. **Fallback check** — If estimated confidence < 0.6, the `qwen3-vl-plus` fallback model processes the same page. The system compares both results and keeps whichever has higher estimated confidence.
+4. **Results stored** — Raw OCR text and estimated confidence scores are saved per page
 
 ### Classification Pipeline (Celery Task, chained after OCR)
 
@@ -103,8 +104,11 @@ For each scanned page:
 2. **AI classification** — `qwen3.5-flash` identifies the document type from configured categories, returning:
    - Primary classification with confidence score
    - Up to 3 alternative classifications
-3. **Template filling** — If confidence is high enough, the AI extracts structured fields into the document type's template schema
-4. **Submission updated** — Classification results and template data are stored
+3. **Confidence threshold enforcement** — The system compares AI confidence against `classification_confidence_threshold` (default: 0.7):
+   - **≥ threshold**: `classification_method = "ai"` — high-confidence result
+   - **< threshold**: `classification_method = "ai_low_confidence"` — alternatives are stored in `template_data["_classification_alternatives"]` for staff review
+4. **Template filling** — If a document type is matched, the AI extracts structured fields into the document type's template schema. Fields are type-validated (strings stripped, numbers parsed).
+5. **Submission updated** — Classification results and template data are stored
 
 The submission transitions: `ocr_processing` → `pending_classification` → `classified`
 
@@ -170,17 +174,19 @@ Step 3: Lãnh đạo (Leadership)       → 72 hours expected
 
 ## Phase 5: Department Review
 
-Each department processes documents sequentially:
+Each department processes documents sequentially. The review workflow works identically for both submission-owned and dossier-owned workflow steps — the system detects the owner mode automatically.
 
 ### Reviewer Actions
 
 1. **View queue** — Staff sees their department's pending documents, sorted by priority (urgent first) and filtered by their clearance level
 2. **Open review** — Full context: scanned images, OCR text, template data, and annotations from prior departments
 3. **Decision** — Three options:
-   - **Approve** — Step completes, next department activated
-   - **Reject** — Entire submission rejected, citizen notified
+   - **Approve** — Step completes, next department activated. For dossier mode, expected duration comes from `CaseTypeRoutingStep`; for submission mode, from `RoutingRule`.
+   - **Reject** — Entire submission/dossier rejected, citizen notified
    - **Request Info** — Step pauses, citizen notified to provide additional information
 4. **Annotate** — Add comments with option to make them visible to the citizen
+
+When a dossier completes (last step approved), the system computes `retention_expires_at` from the `CaseType.retention_years` (or null if `retention_permanent = true`).
 
 ### Cross-Department Consultation
 
@@ -241,13 +247,14 @@ The citizen app shows:
 
 Push notifications are sent via Alibaba Cloud EMAS when:
 
-| Event | Notification |
-|-------|-------------|
-| Workflow step advances | "Your submission has moved to [Department Name]" |
-| Information requested | "Additional information needed for your submission" |
-| Submission completed | "Your submission has been approved" |
-| Submission rejected | "Your submission has been rejected" |
-| Step is delayed | "Processing of your submission is delayed" |
+| Event | Notification (Submission) | Notification (Dossier) |
+|-------|--------------------------|----------------------|
+| Workflow step advances | "Hồ sơ đã chuyển sang {Department}" | "Hồ sơ {ref} đã chuyển sang {Department}" |
+| Information requested | "Cần bổ sung hồ sơ" | — (via dossier status change) |
+| Completed | "Hồ sơ đã hoàn thành" | "Hồ sơ {ref} đã hoàn thành" |
+| Rejected | "Hồ sơ đã hoàn thành" | "Hồ sơ {ref} bị trả lại" (with reason) |
+| Step is delayed | "Hồ sơ bị chậm tại {Department}" | (same detection, same notification) |
+| Dossier received | — | "Hồ sơ {ref} đã được tiếp nhận" |
 
 ## Submission State Machine
 

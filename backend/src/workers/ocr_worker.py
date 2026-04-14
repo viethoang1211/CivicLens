@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from src.config import settings
 from src.models.scanned_page import ScannedPage
 from src.models.submission import Submission
-from src.services.ai_client import ai_client
+from src.services.ai_client import ai_client, estimate_ocr_confidence
 from src.services.oss_client import oss_client
 from src.workers.celery_app import celery_app
 
@@ -29,13 +29,16 @@ def run_ocr_pipeline(self, submission_id: str):
                 image_data = oss_client.download(page.image_oss_key)
                 result = ai_client.run_ocr(image_data)
                 page.ocr_raw_text = result["text"]
-                page.ocr_confidence = 0.85  # Placeholder; real impl parses model confidence
+                page.ocr_confidence = estimate_ocr_confidence(result["text"])
 
                 # Fallback for low confidence
-                if page.ocr_confidence and float(page.ocr_confidence) < 0.6:
+                if page.ocr_confidence is not None and float(page.ocr_confidence) < 0.6:
                     fallback_result = ai_client.run_ocr(image_data, use_fallback=True)
-                    page.ocr_raw_text = fallback_result["text"]
-                    page.ocr_confidence = 0.80
+                    fallback_confidence = estimate_ocr_confidence(fallback_result["text"])
+                    # Keep fallback result only if it's better
+                    if fallback_confidence > float(page.ocr_confidence):
+                        page.ocr_raw_text = fallback_result["text"]
+                        page.ocr_confidence = fallback_confidence
 
             except Exception as exc:
                 page.ocr_raw_text = f"[OCR ERROR: {exc}]"

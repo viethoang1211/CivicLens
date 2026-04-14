@@ -38,31 +38,31 @@ Citizen          Staff (Reception)       AI System         Department Staff     
 
 The system supports two parallel intake workflows:
 
-#### Mode A: Individual Document Submission (Legacy)
+#### Mode A: Quick Scan (Quét nhanh)
 
-For simple, single-document submissions where case-type grouping is unnecessary:
+For simple, single-document submissions where case-type grouping is unnecessary. Staff taps "Quét nhanh" on home screen:
 
 1. **Create submission** — Staff enters citizen CCCD, selects classification and priority
 2. **Scan pages** — Staff scans document pages
-3. **Finalize scan** — Triggers OCR/classification pipeline
+3. **Finalize scan** — Triggers OCR → classification → template fill pipeline
 
-#### Mode B: Case-Based Dossier Submission (Hồ Sơ)
+#### Mode B: Guided Document Capture (Tạo hồ sơ mới)
 
-For multi-document cases where a citizen must submit a bundle of interrelated documents:
+Primary workflow for multi-document cases. Staff taps "Tạo hồ sơ mới" on home screen:
 
-1. **Select case type** — Staff chooses from configured case types (e.g., Household Business Registration, Birth Certificate). Each case type defines which documents are required.
+1. **Case type selection** — Staff selects from active case types (e.g., Đăng ký khai sinh, Đăng ký hộ kinh doanh). Each case type defines which documents are required.
+2. **Citizen ID** — Staff enters citizen CCCD number
+3. **Dossier creation** — System creates dossier with `requirement_snapshot` (frozen copy of case type requirements at creation time, immune to later admin changes)
+4. **Guided capture screen** — Step-by-step screen shows each requirement group with: document name, description, physical identification characteristics ("Đặc điểm nhận dạng"), mandatory/optional badge, and progress indicator
+5. **Per-step capture** — Staff taps camera for each group. For multi-slot groups (OR-logic, e.g., "CCCD **hoặc** Hộ chiếu"), staff selects which document type to capture before opening camera
+6. **AI validation** — Binary "does this match?" validation (not open-ended classification) runs async via Celery; result shown as badge per step within 3-30 seconds (green=match, orange=uncertain, red=mismatch, grey=processing)
+7. **Staff override** — Staff can override AI mismatch warnings ("Bỏ qua cảnh báo"); overrides recorded with `ai_match_overridden = true` for audit
+8. **Draft persistence** — Dossier remains in `draft`/`scanning` status on server; staff can resume from "Hồ sơ đang xử lý" section on home screen
+9. **Summary review** — DossierSummaryScreen shows all groups with validation status before final submit
+10. **Submit** — Completeness checked against snapshot; reference number `HS-YYYYMMDD-NNNNN` generated; workflow created from case type routing steps
+11. **Receipt** — Reference number displayed prominently for citizen to track via citizen app
 
-2. **Create dossier** — Staff enters citizen CCCD, creates a dossier draft. The system returns a checklist of required document groups with their slots.
-
-3. **Upload documents per slot** — For each required document group, staff scans and uploads pages. Each group may have OR-logic: e.g., "CMND **or** CCCD" — fulfilling any one slot satisfies the group.
-
-4. **AI slot validation** — After each upload, an async Celery task validates whether the scanned image matches the expected document type. Results show as badges (green=match, red=mismatch, gray=processing, purple=staff override).
-
-5. **Completeness tracking** — The dossier screen shows real-time completeness: which mandatory groups are satisfied and which are still missing.
-
-6. **Submit dossier** — When all mandatory documents are uploaded, staff submits. A reference number (`HS-YYYYMMDD-NNNNN`) is generated. The dossier is routed to departments based on the case type's routing template.
-
-### Staff Actions (Legacy Mode)
+### Staff Actions (Quick Scan Mode)
 
 1. **Create submission** — Staff enters the citizen's CCCD (national ID) number, selects a security classification level, and sets priority (normal/urgent).
 

@@ -133,6 +133,7 @@ def _build_dossier_response(dossier: Dossier, completeness: dict | None = None) 
         },
         "security_classification": dossier.security_classification,
         "priority": dossier.priority,
+        "requirement_snapshot": dossier.requirement_snapshot,
         "completeness": completeness,
         "requirement_groups": _build_group_list(dossier),
         "documents": _build_document_list(dossier),
@@ -187,6 +188,7 @@ async def create_dossier(
         security_classification=security_classification,
         priority=priority,
         status="draft",
+        requirement_snapshot=await dossier_service.build_requirement_snapshot(case_type, db),
     )
     db.add(dossier)
     await db.commit()

@@ -93,6 +93,24 @@ async def _send_push(push_token: str, title: str, body: str) -> None:
     pass
 
 
+async def notify_dossier_step_advanced(
+    db: AsyncSession,
+    dossier,
+    department_name: str,
+    step_order: int,
+) -> None:
+    """Notify the citizen when a dossier workflow step advances."""
+    ref = dossier.reference_number or str(dossier.id)
+    await create_notification(
+        db=db,
+        citizen_id=dossier.citizen_id,
+        submission_id=None,
+        notification_type="dossier_step_advanced",
+        title=f"Hồ sơ {ref} đã chuyển sang {department_name}",
+        body=f"Hồ sơ {ref} đã hoàn thành bước {step_order - 1} và chuyển sang {department_name}.",
+    )
+
+
 async def notify_dossier_status_change(
     db: AsyncSession,
     dossier_id: uuid.UUID,

@@ -78,12 +78,12 @@ backend/
 │   │       └── notifications.py   # Push notification history
 │   ├── models/              # SQLAlchemy ORM models (17 entities)
 │   ├── services/            # Business logic layer
-│   │   ├── ai_client.py          # Qwen VL OCR + classification + slot validation
+│   │   ├── ai_client.py          # Qwen VL OCR + classification + slot validation + OCR confidence estimation
 │   │   ├── oss_client.py         # Storage abstraction (OSS or local filesystem)
 │   │   ├── local_storage.py      # Local filesystem storage backend
 │   │   ├── dossier_service.py    # Dossier completeness, reference numbers, workflow
 │   │   ├── routing_service.py    # Workflow creation from rules
-│   │   ├── workflow_service.py   # Step advancement + retention
+│   │   ├── workflow_service.py   # Step advancement (dual-owner: submission + dossier) + retention
 │   │   ├── review_service.py     # Review validation + processing
 │   │   ├── notification_service.py  # Push notification triggers
 │   │   ├── audit_service.py      # Immutable audit logging + SLS

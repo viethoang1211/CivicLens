@@ -4,9 +4,16 @@ from src.config import settings
 def assess_image_quality(image_data: bytes) -> dict:
     """Assess scanned document image quality.
 
-    Basic heuristic: check file size as a proxy for resolution/detail.
-    In production, this would use image processing (PIL/OpenCV) for
-    sharpness, contrast, and skew detection.
+    Stable interface contract:
+        Input:  image_data (bytes) — raw image bytes (JPEG/PNG)
+        Output: dict with keys:
+            - "score" (float, 0.0-1.0)   — overall quality score
+            - "acceptable" (bool)          — True if score >= settings.image_quality_threshold
+            - "guidance" (list[str])       — user-facing tips when quality is low
+
+    Current implementation uses file-size heuristic.
+    Production implementation should use PIL/OpenCV for sharpness (Laplacian variance),
+    contrast (histogram spread), and skew detection (Hough transform).
     """
     size_kb = len(image_data) / 1024
 

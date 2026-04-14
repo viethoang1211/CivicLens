@@ -152,11 +152,11 @@ Central entity representing a citizen's document submission through its entire l
 | `submitted_by_staff_id` | UUID (FK → StaffMember) | Staff who scanned the document |
 | `document_type_id` | UUID (FK → DocumentType) | Classified document type (null until classified) |
 | `classification_confidence` | Float | AI classification confidence score |
-| `classification_method` | String | "auto" or "manual" |
+| `classification_method` | String | "ai" (high confidence), "ai_low_confidence" (below threshold), or "manual" (staff override) |
 | `security_classification` | SmallInt (0–3) | Document sensitivity level |
 | `status` | String | Current state (see state machine below) |
 | `priority` | String | "normal" or "urgent" |
-| `template_data` | JSONB | Structured fields extracted/filled for the document type |
+| `template_data` | JSONB | Structured fields extracted/filled for the document type. May include `_classification_alternatives` (list) when `classification_method = "ai_low_confidence"` |
 | `submitted_at` | Timestamp | When originally submitted |
 | `completed_at` | Timestamp | When completed or rejected |
 | `retention_expires_at` | Timestamp | When document can be archived/deleted |

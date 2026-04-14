@@ -72,8 +72,20 @@ def run_classification(self, submission_id: str):
 
         if matched_type:
             submission.document_type_id = matched_type.id
-            submission.classification_confidence = classification.get("confidence", 0.0)
-            submission.classification_method = "ai"
+            confidence = classification.get("confidence", 0.0)
+            submission.classification_confidence = confidence
+
+            # Enforce confidence threshold
+            if confidence >= settings.classification_confidence_threshold:
+                submission.classification_method = "ai"
+            else:
+                submission.classification_method = "ai_low_confidence"
+                # Store alternatives for staff review
+                alternatives = classification.get("alternatives", [])
+                if alternatives:
+                    if submission.template_data is None:
+                        submission.template_data = {}
+                    submission.template_data["_classification_alternatives"] = alternatives
 
             # Run template filling
             template_result = ai_client.fill_template(combined_text, matched_type.template_schema)
@@ -82,11 +94,19 @@ def run_classification(self, submission_id: str):
                     cleaned = template_result.strip()
                     if cleaned.startswith("```"):
                         cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
-                    submission.template_data = json.loads(cleaned)
+                    filled = json.loads(cleaned)
                 else:
-                    submission.template_data = template_result
+                    filled = template_result
             except (json.JSONDecodeError, IndexError):
-                submission.template_data = {}
+                filled = {}
+
+            # Merge template data, preserving _classification_alternatives
+            if submission.template_data and "_classification_alternatives" in submission.template_data:
+                alts = submission.template_data["_classification_alternatives"]
+                submission.template_data = filled if isinstance(filled, dict) else {}
+                submission.template_data["_classification_alternatives"] = alts
+            else:
+                submission.template_data = filled if isinstance(filled, dict) else {}
 
         submission.status = "pending_classification"  # Stays pending until staff confirms
         db.commit()

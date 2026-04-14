@@ -70,9 +70,11 @@ DOCUMENT_TYPES = [
             "required": ["so_cccd", "ho_ten", "ngay_sinh"],
         },
         "classification_prompt": (
-            "Đây là Căn cước công dân (CCCD) hoặc Chứng minh nhân dân (CMND) của Việt Nam. "
-            "Đặc điểm nhận dạng: thẻ nhựa cứng có ảnh chân dung, có chip NFC (CCCD mới), "
-            "hiển thị số CCCD 12 chữ số hoặc CMND 9/12 chữ số, quốc huy Việt Nam, "
+            "Đây là GIẤY Tờ TÙY THÂN do cơ quan công an cấp — "
+            "Căn cước công dân (CCCD) hoặc Chứng minh nhân dân (CMND) của Việt Nam. "
+            "Có chip NFC (CCCD mới), quốc huy Việt Nam. "
+            "Đặc điểm nhận dạng: thẻ nhựa cứng có ảnh chân dung, "
+            "hiển thị số CCCD 12 chữ số hoặc CMND 9/12 chữ số, "
             "thông tin: họ tên, ngày sinh, giới tính, quốc tịch, quê quán, nơi thường trú. "
             "Mặt sau có đặc điểm nhận dạng và ngày cấp."
         ),
@@ -100,7 +102,8 @@ DOCUMENT_TYPES = [
             "required": ["so_ho_chieu", "ho_ten", "ngay_sinh"],
         },
         "classification_prompt": (
-            "Đây là Hộ chiếu Việt Nam (Vietnam Passport). "
+            "Đây là GIẤY Tờ TÙY THÂN do cơ quan xuất nhập cảnh cấp — "
+            "Hộ chiếu Việt Nam (Vietnam Passport). "
             "Đặc điểm: bìa xanh đậm hoặc xanh tím, quốc huy Việt Nam, "
             "chữ 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM' và 'HỘ CHIẾU / PASSPORT'. "
             "Bên trong có ảnh chân dung, thông tin song ngữ Việt-Anh, mã MRZ ở trang thông tin."
@@ -145,13 +148,16 @@ DOCUMENT_TYPES = [
             "required": ["ho_ten_tre", "gioi_tinh", "ngay_sinh", "noi_sinh", "ho_ten_me"],
         },
         "classification_prompt": (
-            "Đây là Tờ khai đăng ký khai sinh theo mẫu của Bộ Tư pháp. "
+            "Đây là TỜ KHAI / mẫu đơn do công dân tự điền — Tờ khai đăng ký khai sinh theo mẫu của Bộ Tư pháp. "
+            "Thường in trắng đen trên giấy A4, có các dòng chấm/ô trống để điền thông tin. "
+            "Mẫu theo Thông tư 04/2020/TT-BTP. "
             "Đặc điểm: có tiêu đề 'TỜ KHAI ĐĂNG KÝ KHAI SINH', "
             "quốc hiệu 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', "
             "các trường: họ tên trẻ, ngày sinh, giới tính, nơi sinh, dân tộc, quốc tịch, "
             "thông tin cha (họ tên, năm sinh, dân tộc, quốc tịch, cư trú), "
             "thông tin mẹ (họ tên, năm sinh, dân tộc, quốc tịch, cư trú), "
-            "người đi đăng ký và quan hệ với trẻ."
+            "người đi đăng ký và quan hệ với trẻ. "
+            "KHÔNG có dấu đỏ của cơ quan nhà nước (khác với Giấy khai sinh do UBND cấp)."
         ),
         "route": ["RECEPTION", "JUDICIAL"],
     },
@@ -186,11 +192,12 @@ DOCUMENT_TYPES = [
             "required": ["ho_ten_me", "gioi_tinh", "ngay_sinh", "noi_sinh"],
         },
         "classification_prompt": (
-            "Đây là Giấy chứng sinh do bệnh viện hoặc cơ sở y tế cấp. "
+            "Đây là GIẤY CHỨNG NHẬN / văn bản do cơ quan y tế cấp — "
+            "Giấy chứng sinh do bệnh viện hoặc cơ sở y tế cấp. "
+            "Có DẤU ĐỎ tròn của cơ sở y tế và chữ ký bác sĩ. "
             "Đặc điểm: có tiêu đề 'GIẤY CHỨNG SINH', logo Bộ Y tế hoặc cơ sở y tế, "
             "thông tin: họ tên mẹ, tuổi mẹ, giới tính trẻ, ngày giờ sinh, nơi sinh (tên bệnh viện), "
-            "tình trạng trẻ khi sinh, họ tên cha, người đỡ đẻ. "
-            "Có dấu tròn đỏ của cơ sở y tế và chữ ký bác sĩ."
+            "tình trạng trẻ khi sinh, họ tên cha, người đỡ đẻ."
         ),
         "route": ["RECEPTION", "JUDICIAL"],
     },
@@ -224,10 +231,13 @@ DOCUMENT_TYPES = [
             "required": ["ho_ten_chong", "ho_ten_vo", "ngay_dang_ky"],
         },
         "classification_prompt": (
-            "Đây là Giấy chứng nhận kết hôn do UBND cấp xã/phường/thị trấn cấp. "
-            "Đặc điểm: có tiêu đề 'GIẤY CHỨNG NHẬN KẾT HÔN', quốc hiệu, "
+            "Đây là GIẤY CHỨNG NHẬN / văn bản do cơ quan nhà nước cấp — "
+            "Giấy chứng nhận kết hôn do UBND cấp xã/phường/thị trấn cấp. "
+            "Có DẤU ĐỎ tròn của UBND, chữ ký Chủ tịch UBND. "
+            "Đặc điểm: có tiêu đề 'GIẤY CHỨNG NHẬN KẾT HÔN', "
+            "quốc hiệu 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', "
             "thông tin hai bên vợ chồng (họ tên, ngày sinh, dân tộc, quốc tịch, cư trú, CCCD), "
-            "ngày đăng ký kết hôn, có dấu đỏ UBND và chữ ký Chủ tịch UBND."
+            "ngày đăng ký kết hôn."
         ),
         "route": ["RECEPTION", "JUDICIAL"],
     },
@@ -260,11 +270,14 @@ DOCUMENT_TYPES = [
             "required": ["ho_ten", "ngay_sinh", "so_cccd", "tinh_trang_hon_nhan"],
         },
         "classification_prompt": (
-            "Đây là Tờ khai xác nhận tình trạng hôn nhân. "
+            "Đây là TỜ KHAI / mẫu đơn do công dân tự điền — Tờ khai xác nhận tình trạng hôn nhân. "
+            "Thường in trắng đen trên giấy A4, có các dòng chấm/ô trống để điền thông tin. "
+            "Mẫu theo Thông tư 04/2020/TT-BTP. "
             "Đặc điểm: có tiêu đề 'TỜ KHAI XÁC NHẬN TÌNH TRẠNG HÔN NHÂN', quốc hiệu, "
             "các trường: họ tên, ngày sinh, giới tính, dân tộc, quốc tịch, CCCD, nơi cư trú, "
             "tình trạng hôn nhân hiện tại (chưa kết hôn / đã ly hôn / goá), "
-            "mục đích sử dụng giấy xác nhận."
+            "mục đích sử dụng giấy xác nhận. "
+            "KHÔNG có dấu đỏ của cơ quan nhà nước (khác với Giấy xác nhận tình trạng hôn nhân do UBND cấp)."
         ),
         "route": ["RECEPTION", "JUDICIAL"],
     },
@@ -304,11 +317,12 @@ DOCUMENT_TYPES = [
             "required": ["ho_ten", "ngay_sinh", "so_cccd", "dia_chi_dang_ky_moi"],
         },
         "classification_prompt": (
-            "Đây là Tờ khai thay đổi thông tin cư trú (Mẫu CT01). "
+            "Đây là TỜ KHAI / mẫu đơn do công dân tự điền — Tờ khai thay đổi thông tin cư trú (Mẫu CT01). "
+            "Thường in trắng đen trên giấy A4, có các dòng chấm/ô trống để điền thông tin. "
+            "Mẫu theo Thông tư 56/2021/TT-BCA. "
             "Đặc điểm: có tiêu đề 'TỜ KHAI THAY ĐỔI THÔNG TIN CƯ TRÚ', quốc hiệu, "
             "mã mẫu CT01, các trường: họ tên, CCCD, ngày sinh, địa chỉ cũ, địa chỉ mới, "
-            "loại chỗ ở (sở hữu/thuê/ở nhờ), lý do thay đổi, "
-            "có xác nhận của công an cấp xã/phường."
+            "loại chỗ ở (sở hữu/thuê/ở nhờ), lý do thay đổi."
         ),
         "route": ["RECEPTION", "POLICE"],
     },
@@ -383,11 +397,14 @@ DOCUMENT_TYPES = [
             "required": ["ten_ho_kinh_doanh", "dia_diem_kinh_doanh", "nganh_nghe", "ho_ten_chu_ho", "so_cccd_chu_ho"],
         },
         "classification_prompt": (
-            "Đây là Giấy đề nghị đăng ký hộ kinh doanh (Phụ lục III-1). "
+            "Đây là TỜ KHAI / mẫu đơn do công dân tự điền — Giấy đề nghị đăng ký hộ kinh doanh (Phụ lục III-1). "
+            "Thường in trắng đen trên giấy A4, có các dòng chấm/ô trống để điền thông tin. "
+            "Mẫu theo Nghị định 01/2021/NĐ-CP. "
             "Đặc điểm: có tiêu đề 'GIẤY ĐỀ NGHỊ ĐĂNG KÝ HỘ KINH DOANH', quốc hiệu, "
             "kính gửi Phòng Tài chính - Kế hoạch, "
             "các trường: tên hộ kinh doanh, địa điểm, ngành nghề, vốn kinh doanh, "
-            "thông tin chủ hộ (họ tên, CCCD, cư trú), số lao động."
+            "thông tin chủ hộ (họ tên, CCCD, cư trú), số lao động. "
+            "KHÔNG có dấu đỏ — đây là đơn đề nghị, chưa phải giấy chứng nhận."
         ),
         "route": ["RECEPTION", "FINANCE"],
     },
@@ -430,12 +447,15 @@ DOCUMENT_TYPES = [
             "required": ["ten_doanh_nghiep", "loai_hinh", "dia_chi_tru_so", "von_dieu_le", "ho_ten_nguoi_dai_dien"],
         },
         "classification_prompt": (
-            "Đây là Giấy đề nghị đăng ký doanh nghiệp (thành lập công ty). "
+            "Đây là TỜ KHAI / mẫu đơn do công dân tự điền — Giấy đề nghị đăng ký doanh nghiệp (thành lập công ty). "
+            "Thường in trắng đen trên giấy A4, có các dòng chấm/ô trống để điền thông tin. "
+            "Mẫu theo Thông tư 01/2021/TT-BKHĐT (Phụ lục I-3, I-4, I-5). "
             "Đặc điểm: có tiêu đề 'GIẤY ĐỀ NGHỊ ĐĂNG KÝ DOANH NGHIỆP', quốc hiệu, "
             "kính gửi Phòng Đăng ký kinh doanh, "
             "các trường: tên doanh nghiệp (VN + tiếng Anh), loại hình (TNHH/CP/Hợp danh), "
             "địa chỉ trụ sở, vốn điều lệ, ngành nghề + mã VSIC, "
-            "thông tin người đại diện pháp luật (họ tên, CCCD, chức danh)."
+            "thông tin người đại diện pháp luật (họ tên, CCCD, chức danh). "
+            "KHÔNG có dấu đỏ — đây là đơn đề nghị, chưa phải giấy chứng nhận."
         ),
         "route": ["RECEPTION", "FINANCE", "JUDICIAL"],
     },

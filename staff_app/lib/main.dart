@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_dart/shared_dart.dart';
 
 import 'features/auth/staff_auth_screen.dart';
@@ -45,6 +46,7 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
   late final ApiClient apiClient;
   late final DossierApi dossierApi;
   List<DossierListItemDto> _draftDossiers = [];
+  final _storage = const FlutterSecureStorage();
 
   @override
   void initState() {
@@ -56,6 +58,14 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
       ),
     );
     dossierApi = DossierApi(apiClient);
+    _loadTokenAndData();
+  }
+
+  Future<void> _loadTokenAndData() async {
+    final token = await _storage.read(key: 'access_token');
+    if (token != null) {
+      apiClient.setToken(token);
+    }
     _loadDraftDossiers();
   }
 

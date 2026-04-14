@@ -154,8 +154,61 @@ async def authorize_submit(
     if state:
         params["state"] = state
     separator = "&" if "?" in redirect_uri else "?"
+    full_redirect = f"{redirect_uri}{separator}{urlencode(params)}"
+
+    # If redirect_uri uses a custom scheme (not http/https), the browser
+    # cannot follow it. Show the code on-screen instead so the user can
+    # copy-paste it into the app (common for web/emulator demo).
+    if not redirect_uri.startswith(("http://", "https://")):
+        citizen = CITIZENS_BY_ID[citizen_id]
+        html = f"""<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VNeID - Đăng nhập thành công</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 50%, #43a047 100%);
+                min-height: 100vh; display: flex; align-items: center; justify-content: center; }}
+        .card {{ background: white; border-radius: 16px; padding: 40px; width: 90%; max-width: 480px;
+                 box-shadow: 0 20px 60px rgba(0,0,0,0.3); text-align: center; }}
+        .icon {{ font-size: 48px; margin-bottom: 16px; }}
+        h1 {{ color: #1b5e20; font-size: 22px; margin-bottom: 8px; }}
+        .citizen {{ color: #666; font-size: 16px; margin-bottom: 24px; }}
+        .code-box {{ background: #f5f5f5; border: 2px dashed #43a047; border-radius: 12px;
+                     padding: 20px; margin-bottom: 16px; }}
+        .code-label {{ font-size: 13px; color: #888; margin-bottom: 8px; }}
+        .code {{ font-family: 'Courier New', monospace; font-size: 14px; word-break: break-all;
+                 color: #1b5e20; font-weight: 700; user-select: all; }}
+        button {{ padding: 12px 32px; background: #1b5e20; color: white; border: none;
+                  border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+                  transition: background 0.2s; }}
+        button:hover {{ background: #2e7d32; }}
+        .hint {{ color: #999; font-size: 12px; margin-top: 16px; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">✅</div>
+        <h1>Xác thực thành công!</h1>
+        <div class="citizen">{citizen["full_name"]} — CCCD: {citizen["id_number"]}</div>
+        <div class="code-box">
+            <div class="code-label">Mã xác thực (copy và dán vào app):</div>
+            <div class="code" id="authCode">{code}</div>
+        </div>
+        <button onclick="navigator.clipboard.writeText(document.getElementById('authCode').textContent).then(()=>this.textContent='Đã copy ✓')">
+            📋 Copy mã
+        </button>
+        <div class="hint">Quay lại ứng dụng và dán mã này để hoàn tất đăng nhập</div>
+    </div>
+</body>
+</html>"""
+        return HTMLResponse(content=html)
+
     return RedirectResponse(
-        url=f"{redirect_uri}{separator}{urlencode(params)}",
+        url=full_redirect,
         status_code=302,
     )
 

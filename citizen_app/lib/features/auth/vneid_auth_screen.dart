@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:app_links/app_links.dart';
 
 class VneidAuthScreen extends StatefulWidget {
   const VneidAuthScreen({super.key});
@@ -23,6 +25,36 @@ class _VneidAuthScreenState extends State<VneidAuthScreen> {
   static const _callbackUri = 'citizen-app://auth/callback';
 
   late final Dio _dio = Dio(BaseOptions(baseUrl: _apiBaseUrl));
+  late final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSub;
+  bool _waitingForCallback = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for incoming deep links (VNeID callback)
+    _linkSub = _appLinks.uriLinkStream.listen(_handleDeepLink);
+    // Also check if the app was opened via a deep link (cold start)
+    _appLinks.getInitialLink().then((uri) {
+      if (uri != null) _handleDeepLink(uri);
+    });
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
+
+  void _handleDeepLink(Uri uri) {
+    if (uri.scheme == 'citizen-app' && uri.host == 'auth' && uri.path == '/callback') {
+      final code = uri.queryParameters['code'];
+      if (code != null && code.isNotEmpty && mounted) {
+        _waitingForCallback = false;
+        _exchangeCode(code);
+      }
+    }
+  }
 
   Future<void> _authenticateWithVneid() async {
     setState(() {
@@ -41,43 +73,73 @@ class _VneidAuthScreenState extends State<VneidAuthScreen> {
       // Step 2: Open VNeID login page in browser
       final uri = Uri.parse(authorizeUrl);
       if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        setState(() => _error = 'Không thể mở trang đăng nhập VNeID');
+        setState(() {
+          _error = 'Không thể mở trang đăng nhập VNeID';
+          _loading = false;
+        });
         return;
       }
 
-      // The auth code will come back via deep link handled by _handleAuthCode
-      // For now, show a dialog to paste the code (deep link setup varies by platform)
-      if (mounted) {
+      // Mark that we're waiting for the deep link callback.
+      // The deep link listener (_handleDeepLink) will auto-capture the code.
+      _waitingForCallback = true;
+
+      // Fallback: if deep link doesn't fire within a reasonable time
+      // (e.g. on emulator), show manual code input dialog.
+      await Future.delayed(const Duration(seconds: 2));
+      if (_waitingForCallback && mounted) {
         final code = await _showCodeInputDialog();
         if (code != null && code.isNotEmpty) {
+          _waitingForCallback = false;
           await _exchangeCode(code);
+        } else {
+          if (mounted) setState(() => _loading = false);
         }
       }
     } on DioException catch (e) {
       setState(() {
         _error = e.response?.data?['detail'] ?? 'Lỗi kết nối. Vui lòng thử lại.';
+        _loading = false;
       });
     } catch (e) {
-      setState(() => _error = 'Đã xảy ra lỗi: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      setState(() {
+        _error = 'Đã xảy ra lỗi: $e';
+        _loading = false;
+      });
     }
   }
 
   /// Called when we have an auth code (from deep link or manual input)
   Future<void> _exchangeCode(String code) async {
-    final response = await _dio.post('/v1/citizen/auth/vneid', data: {
-      'vneid_auth_code': code,
-      'redirect_uri': _callbackUri,
-    });
+    if (mounted) setState(() => _loading = true);
+    try {
+      final response = await _dio.post('/v1/citizen/auth/vneid', data: {
+        'vneid_auth_code': code,
+        'redirect_uri': _callbackUri,
+      });
 
-    final data = response.data;
-    await _storage.write(key: 'access_token', value: data['access_token']);
-    await _storage.write(key: 'refresh_token', value: data['refresh_token']);
-    await _storage.write(key: 'citizen_name', value: data['citizen']['full_name']);
+      final data = response.data;
+      await _storage.write(key: 'access_token', value: data['access_token']);
+      await _storage.write(key: 'refresh_token', value: data['refresh_token']);
+      await _storage.write(key: 'citizen_name', value: data['citizen']['full_name']);
 
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/submissions');
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/submissions');
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.response?.data?['detail'] ?? 'Xác thực thất bại. Vui lòng thử lại.';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Đã xảy ra lỗi: $e';
+          _loading = false;
+        });
+      }
     }
   }
 

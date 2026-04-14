@@ -123,6 +123,7 @@ class DossierDto {
   final DossierCurrentStepDto? currentStep;
   final int? totalSteps;
   final int? completedSteps;
+  final Map<String, dynamic>? requirementSnapshot;
 
   DossierDto({
     required this.id,
@@ -144,6 +145,7 @@ class DossierDto {
     this.currentStep,
     this.totalSteps,
     this.completedSteps,
+    this.requirementSnapshot,
   });
 
   bool get isDraft => status == 'draft';
@@ -184,6 +186,7 @@ class DossierDto {
           : null,
       totalSteps: json['total_steps'] as int?,
       completedSteps: json['completed_steps'] as int?,
+      requirementSnapshot: json['requirement_snapshot'] as Map<String, dynamic>?,
     );
   }
 }

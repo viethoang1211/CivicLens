@@ -114,6 +114,7 @@ Key capabilities:
 - **Clearance enforcement** — UI filters documents above staff clearance level
 - **Review workflow** — approve/reject/request-info with annotations
 - **AI badge display** — shows AI slot validation results with override capability
+- **Guided document capture** (003) — step-by-step capture wizard driven by `requirement_snapshot` JSONB, including `GuidedCaptureScreen`, `CaptureStepWidget`, `DossierSummaryScreen`, `AiValidationBadge`, and `PagePreviewWidget`
 
 ### Mock VNeID OAuth Server (`mock_vneid/`)
 

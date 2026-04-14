@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, SmallInteger, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, UUIDPrimaryKey, TimestampMixin
@@ -26,6 +26,7 @@ class Dossier(Base, UUIDPrimaryKey, TimestampMixin):
     status: Mapped[str] = mapped_column(String(30), nullable=False, server_default="draft")
     security_classification: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="0")
     priority: Mapped[str] = mapped_column(String(10), nullable=False, server_default="normal")
+    requirement_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

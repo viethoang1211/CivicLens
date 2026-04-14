@@ -57,6 +57,7 @@ docs/             Documentation (you are here)
 | Document | Description |
 |----------|-------------|
 | [Getting Started](getting-started.md) | Local development setup, prerequisites, running the system |
+| [Flutter App Testing](flutter-app-testing.md) | Hướng dẫn chạy Staff App + Citizen App bằng Android Studio kết nối backend đã deploy |
 | [Architecture](architecture.md) | High-level architecture, tech stack decisions, component overview |
 | [Business Flow](business-flow.md) | End-to-end document processing workflow, state machines |
 | [API Reference](api-reference.md) | REST API endpoints for staff and citizen apps |

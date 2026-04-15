@@ -105,7 +105,7 @@ async def authorize_page(
             <p>Ứng dụng định danh điện tử quốc gia</p>
             <span class="badge">⚙ MÔI TRƯỜNG DEMO</span>
         </div>
-        <form method="POST" action="/authorize">
+        <form method="POST">
             <input type="hidden" name="client_id" value="{client_id}">
             <input type="hidden" name="redirect_uri" value="{redirect_uri}">
             <input type="hidden" name="response_type" value="{response_type}">

@@ -5,22 +5,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.config import settings
-
-from src.api.staff import submissions as staff_submissions
-from src.api.staff import classification as staff_classification
-from src.api.staff import routing as staff_routing
-from src.api.staff import departments as staff_departments
-from src.api.staff import workflow_steps as staff_workflow_steps
-from src.api.staff import auth as staff_auth
-from src.api.staff import admin_document_types, admin_routing_rules
-from src.api.staff import dossier as staff_dossier
-from src.api.staff import admin_case_types as staff_admin_case_types
-from src.api.citizen import auth as citizen_auth
-from src.api.citizen import submissions as citizen_submissions
-from src.api.citizen import notifications as citizen_notifications
-from src.api.citizen import dossier as citizen_dossier
 from src.api import vneid_proxy
+from src.api.citizen import auth as citizen_auth
+from src.api.citizen import dossier as citizen_dossier
+from src.api.citizen import notifications as citizen_notifications
+from src.api.citizen import submissions as citizen_submissions
+from src.api.staff import admin_case_types as staff_admin_case_types
+from src.api.staff import admin_document_types, admin_routing_rules
+from src.api.staff import analytics as staff_analytics
+from src.api.staff import auth as staff_auth
+from src.api.staff import classification as staff_classification
+from src.api.staff import departments as staff_departments
+from src.api.staff import dossier as staff_dossier
+from src.api.staff import routing as staff_routing
+from src.api.staff import search as staff_search
+from src.api.staff import submissions as staff_submissions
+from src.api.staff import workflow_steps as staff_workflow_steps
+from src.config import settings
 
 
 @asynccontextmanager
@@ -53,6 +54,8 @@ app.include_router(admin_document_types.router, prefix="/v1/staff/admin/document
 app.include_router(admin_routing_rules.router, prefix="/v1/staff/admin/routing-rules", tags=["admin-routing-rules"])
 app.include_router(staff_admin_case_types.router)
 app.include_router(staff_dossier.router)
+app.include_router(staff_search.router, prefix="/v1/staff/search", tags=["staff-search"])
+app.include_router(staff_analytics.router, prefix="/v1/staff/analytics", tags=["staff-analytics"])
 
 # Citizen routes
 app.include_router(citizen_auth.router, prefix="/v1/citizen/auth", tags=["citizen-auth"])

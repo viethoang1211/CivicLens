@@ -1,7 +1,7 @@
 from sqlalchemy import Boolean, SmallInteger, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models.base import Base, UUIDPrimaryKey, CreatedAtMixin
+from src.models.base import Base, CreatedAtMixin, UUIDPrimaryKey
 
 
 class Department(Base, UUIDPrimaryKey, CreatedAtMixin):

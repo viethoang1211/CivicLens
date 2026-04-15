@@ -290,3 +290,37 @@ Before classification is confirmed, the system checks for recent duplicate submi
 - Same citizen + same document type + submitted within last 30 days + not rejected
 - If found, staff is warned with details of the existing submission
 - Staff can proceed anyway (legitimate re-submission) or cancel
+
+---
+
+## Search Workflow (Feature 005)
+
+Staff can perform cross-department full-text search across all submissions, dossiers, and OCR content:
+
+1. Staff enters query (min 2 chars) at `GET /v1/staff/search?q=...`
+2. System searches: `scanned_page.search_vector` (FTS), `citizen.full_name` (trigram), `citizen.id_number` (exact), `dossier.reference_number` (exact)
+3. Results filtered by `staff.clearance_level >= resource.security_classification`
+4. Results ranked by relevance (`ts_rank`) and paginated
+5. Each result includes AI summary preview and highlight snippets
+
+## AI Summarization Pipeline (Feature 005)
+
+```
+OCR → Classification → Summarization + Entity Extraction
+         (existing)         (new — Feature 005)
+```
+
+1. After classification completes, `classification_worker` chains to `summarization_worker.generate_summary()`
+2. Summarization loads OCR text + document type name, calls `qwen3.5-flash` with Vietnamese prompt
+3. Returns `{summary, key_points, entities}` — stored on `submission.ai_summary` + `template_data["_entities"]`
+4. Skips if OCR text empty or average confidence < 0.3
+5. On API failure: 3 retries (10s/30s/90s backoff), then `ai_summary = null`
+6. Dossier summarization triggers separately on `POST /dossier/{id}/submit` — aggregates document summaries
+7. Staff can correct OCR text → triggers summary regeneration
+
+## SLA Analytics (Feature 005)
+
+Managers/admins can view SLA performance at `GET /v1/staff/analytics/sla`:
+- Metrics per department: total/completed/pending/delayed steps, avg processing hours, delay rate, completion rate
+- A step is "delayed" if completed after `expected_complete_by` or still pending past that date
+- No citizen PII exposed — only aggregate counts and averages

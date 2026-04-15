@@ -1,7 +1,7 @@
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models.base import Base, UUIDPrimaryKey, TimestampMixin
+from src.models.base import Base, TimestampMixin, UUIDPrimaryKey
 
 
 class Citizen(Base, UUIDPrimaryKey, TimestampMixin):

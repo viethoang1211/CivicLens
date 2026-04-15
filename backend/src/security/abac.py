@@ -1,12 +1,11 @@
 import uuid
 
-from fastapi import Depends, HTTPException, status
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.dependencies import get_db
 from src.models.submission import Submission
-from src.security.auth import StaffIdentity, get_current_staff
+from src.security.auth import StaffIdentity
 from src.services.audit_service import log_access
 
 

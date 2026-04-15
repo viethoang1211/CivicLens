@@ -1,14 +1,12 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import get_db
 from src.models.document_type import DocumentType
-from src.models.scanned_page import ScannedPage
-from src.models.submission import Submission
 from src.security.abac import check_submission_clearance
 from src.security.auth import StaffIdentity, get_current_staff
 
@@ -50,6 +48,9 @@ async def get_classification(
             "alternatives": alternatives,
         },
         "template_data": submission.template_data,
+        "ai_summary": submission.ai_summary,
+        "ai_summary_is_ai_generated": submission.ai_summary is not None,
+        "entities": (submission.template_data or {}).get("_entities"),
     }
 
 

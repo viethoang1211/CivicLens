@@ -54,8 +54,7 @@ async def process_review(
         resource_id=str(step.id),
     )
 
-    outcome = await advance_workflow(db, step, result)
-    return outcome
+    return await advance_workflow(db, step, result)
 
 
 async def create_consultation(

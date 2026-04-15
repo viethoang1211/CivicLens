@@ -1,8 +1,8 @@
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
 
 from src.config import settings
 from src.dependencies import get_db

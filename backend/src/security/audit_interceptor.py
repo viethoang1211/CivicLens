@@ -1,5 +1,7 @@
 """FastAPI middleware that automatically logs all staff API actions to the audit log."""
 
+import logging
+
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseCallType
 from starlette.requests import Request
 from starlette.responses import Response
@@ -52,8 +54,7 @@ class AuditInterceptor(BaseHTTPMiddleware):
                 )
                 await db.commit()
         except Exception:
-            # Audit logging should never break the request
-            pass
+            logging.getLogger(__name__).exception("Audit logging failed")
 
         return response
 

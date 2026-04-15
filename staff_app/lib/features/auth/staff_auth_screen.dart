@@ -36,6 +36,15 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
       await _storage.write(key: 'access_token', value: data['access_token']);
       await _storage.write(key: 'refresh_token', value: data['refresh_token']);
 
+      // Save staff profile for use across the app
+      final staff = data['staff'] as Map<String, dynamic>?;
+      if (staff != null) {
+        await _storage.write(key: 'staff_department_id', value: staff['department_id']?.toString() ?? '');
+        await _storage.write(key: 'staff_clearance_level', value: (staff['clearance_level'] ?? 0).toString());
+        await _storage.write(key: 'staff_full_name', value: staff['full_name']?.toString() ?? '');
+        await _storage.write(key: 'staff_role', value: staff['role']?.toString() ?? '');
+      }
+
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/home');
       }

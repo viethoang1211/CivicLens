@@ -4,6 +4,12 @@ import 'package:shared_dart/shared_dart.dart';
 import 'features/auth/vneid_auth_screen.dart';
 import 'features/submissions/dossier_lookup_screen.dart';
 
+/// Single source of truth for backend URL across entire citizen app.
+const kApiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://10.0.2.2:8000',
+);
+
 void main() {
   runApp(const CitizenApp());
 }
@@ -35,12 +41,7 @@ class _CitizenHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final apiClient = ApiClient(
-      baseUrl: const String.fromEnvironment(
-        'API_BASE_URL',
-        defaultValue: 'http://10.0.2.2:8000',
-      ),
-    );
+    final apiClient = ApiClient(baseUrl: kApiBaseUrl);
     final citizenDossierApi = CitizenDossierApi(apiClient);
 
     return Scaffold(

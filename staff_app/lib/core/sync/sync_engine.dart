@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_dart/shared_dart.dart';
+import '../../main.dart' show kApiBaseUrl;
 import 'offline_queue.dart';
 
 const syncTaskName = 'sync_scanned_pages';
@@ -33,9 +34,7 @@ class SyncEngine {
     final pending = await OfflineQueue.getPending();
     if (pending.isEmpty) return;
 
-    final client = ApiClient(
-      baseUrl: const String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8000'),
-    );
+    final client = ApiClient(baseUrl: kApiBaseUrl);
     final api = StaffSubmissionsApi(client);
 
     for (final scan in pending) {

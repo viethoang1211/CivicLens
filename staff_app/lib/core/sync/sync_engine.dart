@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_dart/shared_dart.dart';
 import '../../main.dart' show kApiBaseUrl;
@@ -35,6 +36,10 @@ class SyncEngine {
     if (pending.isEmpty) return;
 
     final client = ApiClient(baseUrl: kApiBaseUrl);
+    const storage = FlutterSecureStorage();
+    final token = await storage.read(key: 'access_token');
+    if (token == null) return; // Cannot sync without auth
+    client.setToken(token);
     final api = StaffSubmissionsApi(client);
 
     for (final scan in pending) {

@@ -3,6 +3,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,20 +20,33 @@ from src.workers.ocr_worker import run_ocr_pipeline
 router = APIRouter()
 
 
+class CreateSubmissionRequest(BaseModel):
+    citizen_id_number: str
+    security_classification: int = 0
+    priority: str = "normal"
+
+    @field_validator("security_classification")
+    @classmethod
+    def validate_classification(cls, v: int) -> int:
+        if v < 0 or v > 3:
+            raise ValueError("security_classification must be 0-3")
+        return v
+
+    @field_validator("priority")
+    @classmethod
+    def validate_priority(cls, v: str) -> str:
+        if v not in ("normal", "urgent"):
+            raise ValueError("priority must be 'normal' or 'urgent'")
+        return v
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_submission(
-    citizen_id_number: str,
-    security_classification: int = 0,
-    priority: str = "normal",
+    body: CreateSubmissionRequest,
     staff: StaffIdentity = Depends(get_current_staff),
     db: AsyncSession = Depends(get_db),
 ):
-    if security_classification < 0 or security_classification > 3:
-        raise HTTPException(status_code=422, detail="security_classification must be 0-3")
-    if priority not in ("normal", "urgent"):
-        raise HTTPException(status_code=422, detail="priority must be 'normal' or 'urgent'")
-
-    result = await db.execute(select(Citizen).where(Citizen.id_number == citizen_id_number))
+    result = await db.execute(select(Citizen).where(Citizen.id_number == body.citizen_id_number))
     citizen = result.scalar_one_or_none()
     if citizen is None:
         raise HTTPException(status_code=404, detail="Citizen not found. Verify CCCD number.")
@@ -40,8 +54,8 @@ async def create_submission(
     submission = Submission(
         citizen_id=citizen.id,
         submitted_by_staff_id=staff.staff_id,
-        security_classification=security_classification,
-        priority=priority,
+        security_classification=body.security_classification,
+        priority=body.priority,
         status="draft",
         submitted_at=datetime.now(UTC),
     )
@@ -164,25 +178,34 @@ async def get_ocr_results(
     }
 
 
+class OcrPageCorrection(BaseModel):
+    page_number: int
+    corrected_text: str
+
+
+class OcrCorrectionRequest(BaseModel):
+    pages: list[OcrPageCorrection]
+
+
 @router.put("/{submission_id}/ocr-corrections")
 async def submit_ocr_corrections(
     submission_id: uuid.UUID,
-    pages: list[dict],
+    body: OcrCorrectionRequest,
     staff: StaffIdentity = Depends(get_current_staff),
     db: AsyncSession = Depends(get_db),
 ):
     await check_submission_clearance(submission_id, staff, db, action="correct_ocr")
 
-    for page_correction in pages:
+    for page_correction in body.pages:
         result = await db.execute(
             select(ScannedPage).where(
                 ScannedPage.submission_id == submission_id,
-                ScannedPage.page_number == page_correction["page_number"],
+                ScannedPage.page_number == page_correction.page_number,
             )
         )
         page = result.scalar_one_or_none()
         if page:
-            page.ocr_corrected_text = page_correction["corrected_text"]
+            page.ocr_corrected_text = page_correction.corrected_text
 
     await db.commit()
 

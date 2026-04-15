@@ -7,7 +7,6 @@ from sqlalchemy.orm import selectinload
 
 from src.dependencies import get_db
 from src.models.dossier import Dossier
-from src.models.workflow_step import WorkflowStep
 from src.security.auth import CitizenIdentity, get_current_citizen
 
 router = APIRouter(prefix="/v1/citizen/dossiers", tags=["citizen-dossiers"])

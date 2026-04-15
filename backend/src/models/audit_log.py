@@ -1,10 +1,10 @@
 import uuid
 
-from sqlalchemy import String, Text
+from sqlalchemy import String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.models.base import Base, UUIDPrimaryKey, CreatedAtMixin
+from src.models.base import Base, CreatedAtMixin, UUIDPrimaryKey
 
 
 class AuditLogEntry(Base, UUIDPrimaryKey, CreatedAtMixin):

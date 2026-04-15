@@ -782,6 +782,114 @@ Get detailed dossier tracking with workflow steps (requires auth, ownership enfo
 
 ---
 
+## Search & Analytics (Feature 005)
+
+### `GET /v1/staff/search`
+
+Cross-department full-text search across submissions, dossiers, and OCR content with clearance filtering.
+
+**Authentication:** Staff JWT required.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `q` | string | YES | — | Search query (min 2 chars) |
+| `status` | string | NO | — | Filter: `pending`, `in_progress`, `completed`, `rejected` |
+| `document_type_code` | string | NO | — | Filter by document type code |
+| `case_type_code` | string | NO | — | Filter by case type code |
+| `department_id` | UUID | NO | — | Filter by department |
+| `date_from` | date | NO | — | Filter: submitted after (inclusive) |
+| `date_to` | date | NO | — | Filter: submitted before (inclusive) |
+| `sort` | string | NO | `relevance` | Sort: `relevance`, `submitted_at`, `updated_at` |
+| `page` | int | NO | 1 | Page number (1-based) |
+| `per_page` | int | NO | 20 | Items per page (max 50) |
+
+**Response (200):**
+```json
+{
+  "results": [
+    {
+      "type": "submission",
+      "id": "uuid",
+      "status": "completed",
+      "submitted_at": "2026-04-10T08:30:00Z",
+      "citizen_name": "Nguyễn Văn An",
+      "document_type_name": "Giấy khai sinh",
+      "document_type_code": "BIRTH_CERT",
+      "ai_summary": "Giấy khai sinh của Nguyễn Văn An...",
+      "ai_summary_is_ai_generated": true,
+      "relevance_score": 0.85,
+      "highlight": "...tên: <em>Nguyễn Văn An</em>..."
+    }
+  ],
+  "pagination": { "page": 1, "per_page": 20, "total": 42, "total_pages": 3 },
+  "query": "Nguyễn Văn An"
+}
+```
+
+**Security:** Results filtered by `staff.clearance_level >= resource.security_classification`.
+
+---
+
+### `GET /v1/staff/analytics/sla`
+
+SLA performance analytics aggregated by department. Manager/admin only.
+
+**Authentication:** Staff JWT required. Must have role `manager` or `admin`.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `date_from` | date | NO | 30 days ago | Start date (inclusive) |
+| `date_to` | date | NO | today | End date (inclusive) |
+| `department_id` | UUID | NO | — | Filter to specific department |
+
+**Response (200):**
+```json
+{
+  "period": { "from": "2026-03-16", "to": "2026-04-15" },
+  "departments": [
+    {
+      "department_id": "uuid",
+      "department_name": "Phòng Tư pháp",
+      "department_code": "JUSTICE",
+      "metrics": {
+        "total_steps": 150,
+        "completed_steps": 120,
+        "pending_steps": 25,
+        "delayed_steps": 5,
+        "avg_processing_hours": 4.2,
+        "delay_rate": 0.033,
+        "completion_rate": 0.80
+      }
+    }
+  ],
+  "totals": { "total_steps": 450, "completed_steps": 380, ... }
+}
+```
+
+**Response (403):** Non-manager/admin role.
+
+---
+
+### Modified: `GET /v1/staff/departments/{id}/queue`
+
+Now includes `summary_preview` field on each queue item.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `summary_preview` | string \| null | First 100 chars of AI summary, or null |
+
+---
+
+### Modified: `GET /v1/staff/submissions/{id}/classification`
+
+Now includes `ai_summary`, `ai_summary_is_ai_generated`, and `entities` fields.
+
+---
+
 ## Error Responses
 
 All errors follow a consistent format:

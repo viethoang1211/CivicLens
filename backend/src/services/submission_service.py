@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.submission import Submission
@@ -19,7 +19,7 @@ async def check_duplicate(
     if not citizen_id or not document_type_id:
         return None
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days_window)
+    cutoff = datetime.now(UTC) - timedelta(days=days_window)
 
     result = await db.execute(
         select(Submission).where(

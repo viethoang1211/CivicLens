@@ -94,7 +94,46 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
                 ],
               ),
               title: Text(item['document_type_name'] ?? 'Document'),
-              subtitle: Text('Started: ${item['started_at'] ?? 'N/A'}'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Started: ${item['started_at'] ?? 'N/A'}'),
+                  if (item['summary_preview'] != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          margin: const EdgeInsets.only(right: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'AI tạo',
+                            style: TextStyle(fontSize: 10, color: Colors.purple),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            item['summary_preview'],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, color: Colors.black54),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Đang tạo tóm tắt...',
+                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
+                    ),
+                  ],
+                ],
+              ),
+              isThreeLine: true,
               trailing: isDelayed
                   ? const Chip(
                       label: Text('Delayed', style: TextStyle(color: Colors.white, fontSize: 11)),

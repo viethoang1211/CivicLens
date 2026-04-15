@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,7 @@ async def create_notification(
         type=notification_type,
         title=title,
         body=body,
-        sent_at=datetime.now(timezone.utc),
+        sent_at=datetime.now(UTC),
     )
     db.add(notification)
     await db.flush()

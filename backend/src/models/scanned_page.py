@@ -1,11 +1,21 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, SmallInteger, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import (
+    CheckConstraint,
+    Computed,
+    DateTime,
+    ForeignKey,
+    Numeric,
+    SmallInteger,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models.base import Base, UUIDPrimaryKey, CreatedAtMixin
+from src.models.base import Base, CreatedAtMixin, UUIDPrimaryKey
 
 
 class ScannedPage(Base, UUIDPrimaryKey, CreatedAtMixin):
@@ -31,6 +41,15 @@ class ScannedPage(Base, UUIDPrimaryKey, CreatedAtMixin):
     ocr_confidence: Mapped[float | None] = mapped_column(Numeric(5, 4))
     image_quality_score: Mapped[float | None] = mapped_column(Numeric(5, 4))
     synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    search_vector = mapped_column(
+        TSVECTOR,
+        Computed(
+            "to_tsvector('simple', "
+            "COALESCE(immutable_unaccent(ocr_corrected_text), '') || ' ' || "
+            "COALESCE(immutable_unaccent(ocr_raw_text), ''))",
+            persisted=True,
+        ),
+    )
 
     submission = relationship("Submission", back_populates="scanned_pages")
     dossier_document = relationship("DossierDocument", back_populates="scanned_pages")

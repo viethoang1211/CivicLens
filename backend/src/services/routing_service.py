@@ -1,5 +1,4 @@
-import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,7 +47,7 @@ async def create_workflow_for_submission(db: AsyncSession, submission: Submissio
                 f">= {submission.security_classification}"
             )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     steps = []
 
     for i, rule in enumerate(rules):
@@ -64,7 +63,9 @@ async def create_workflow_for_submission(db: AsyncSession, submission: Submissio
             status="active" if is_first else "pending",
             started_at=now if is_first else None,
             expected_complete_by=(
-                now + timedelta(hours=rule.expected_duration_hours) if is_first and rule.expected_duration_hours else None
+                now + timedelta(hours=rule.expected_duration_hours)
+                if is_first and rule.expected_duration_hours
+                else None
             ),
         )
         db.add(step)

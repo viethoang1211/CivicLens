@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,7 +57,7 @@ async def build_requirement_snapshot(case_type: CaseType, db: AsyncSession) -> d
     return {
         "case_type_code": case_type.code,
         "case_type_name": case_type.name,
-        "snapshot_at": datetime.now(timezone.utc).isoformat(),
+        "snapshot_at": datetime.now(UTC).isoformat(),
         "groups": groups_out,
     }
 
@@ -124,7 +124,7 @@ async def generate_reference_number(db: AsyncSession, submitted_date: date) -> s
     Safe for low-to-moderate concurrency (< 1000 submissions/day/office).
     """
     date_str = submitted_date.strftime("%Y%m%d")
-    start_of_day = datetime.combine(submitted_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+    start_of_day = datetime.combine(submitted_date, datetime.min.time()).replace(tzinfo=UTC)
     end_of_day = start_of_day + timedelta(days=1)
 
     count_result = await db.execute(
@@ -173,7 +173,7 @@ async def create_dossier_workflow(dossier: Dossier, db: AsyncSession) -> dict:
                 f">= {dossier.security_classification}"
             )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     steps_out = []
 
     for i, step in enumerate(routing_steps):

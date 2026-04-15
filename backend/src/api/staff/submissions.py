@@ -1,10 +1,10 @@
+import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.dependencies import get_db
 from src.models.citizen import Citizen
@@ -43,7 +43,7 @@ async def create_submission(
         security_classification=security_classification,
         priority=priority,
         status="draft",
-        submitted_at=datetime.now(timezone.utc),
+        submitted_at=datetime.now(UTC),
     )
     db.add(submission)
     await db.commit()
@@ -91,7 +91,7 @@ async def upload_page(
         page_number=page_number,
         image_oss_key=oss_key,
         image_quality_score=quality_result["score"],
-        synced_at=datetime.now(timezone.utc),
+        synced_at=datetime.now(UTC),
     )
     db.add(page)
 
@@ -185,4 +185,12 @@ async def submit_ocr_corrections(
             page.ocr_corrected_text = page_correction["corrected_text"]
 
     await db.commit()
+
+    # Regenerate AI summary with updated OCR text
+    try:
+        from src.workers.summarization_worker import generate_summary
+        generate_summary.delay(str(submission_id))
+    except Exception:
+        logging.getLogger(__name__).exception("Summarization enqueue failed")
+
     return {"status": "ok"}

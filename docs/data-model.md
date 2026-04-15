@@ -396,3 +396,30 @@ The `app.clearance_level` session variable is set by the API's database dependen
 | `case_type` | `code` (unique) | Seed idempotency |
 | `audit_log_entry` | `actor_id` | Actor audit history |
 | `audit_log_entry` | `resource_type, resource_id` | Resource audit history |
+
+### Feature 005: Search & AI Summarization
+
+**New Extensions:** `unaccent` (diacritic normalization), `pg_trgm` (trigram fuzzy matching)
+
+**New Function:** `immutable_unaccent(text)` — IMMUTABLE wrapper for use in generated columns and indexes.
+
+**New Columns:**
+
+| Table | Column | Type | Description |
+|-------|--------|------|-------------|
+| `submission` | `ai_summary` | Text, nullable | AI-generated 2-3 sentence Vietnamese summary |
+| `submission` | `ai_summary_generated_at` | DateTime(tz), nullable | When summary was last generated |
+| `dossier` | `ai_summary` | Text, nullable | AI-generated dossier summary |
+| `dossier` | `ai_summary_generated_at` | DateTime(tz), nullable | When summary was last generated |
+| `scanned_page` | `search_vector` | TSVector, GENERATED STORED | Full-text search vector from OCR text |
+
+**New Indexes:**
+
+| Table | Index | Type | Purpose |
+|-------|-------|------|---------|
+| `scanned_page` | `idx_scanned_page_search` | GIN | Full-text search ranking |
+| `scanned_page` | `idx_scanned_page_trgm` | GiST (gist_trgm_ops) | Fuzzy trigram matching |
+| `submission` | `idx_submission_ai_summary` | BTREE | Backfill filter (ai_summary_generated_at) |
+| `citizen` | `idx_citizen_fullname_trgm` | GiST (gist_trgm_ops) | Fuzzy citizen name search |
+
+**Entity Extraction:** Stored in `submission.template_data["_entities"]` as JSONB with keys: `persons`, `id_numbers`, `dates`, `addresses`, `amounts`.

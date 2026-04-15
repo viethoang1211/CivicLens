@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -7,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from src.dependencies import get_db
 from src.models.department import Department
+from src.models.dossier import Dossier
 from src.models.submission import Submission
 from src.models.workflow_step import WorkflowStep
 from src.security.auth import StaffIdentity, get_current_staff
@@ -54,9 +56,9 @@ async def get_department_queue(
     result = await db.execute(query.options(selectinload(WorkflowStep.submission)))
     steps = result.scalars().all()
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     items = []
     for step in steps:
@@ -64,14 +66,27 @@ async def get_department_queue(
         if step.expected_complete_by and step.status == "active" and now > step.expected_complete_by:
             is_delayed = True
 
+        # Get summary preview from submission or dossier
+        summary_preview = None
+        if step.submission and step.submission.ai_summary:
+            summary_preview = step.submission.ai_summary[:100]
+        elif step.dossier_id:
+            # Load dossier summary for dossier-owned steps
+            dos_result = await db.execute(select(Dossier).where(Dossier.id == step.dossier_id))
+            dos = dos_result.scalar_one_or_none()
+            if dos and dos.ai_summary:
+                summary_preview = dos.ai_summary[:100]
+
         items.append({
             "workflow_step_id": str(step.id),
-            "submission_id": str(step.submission_id),
+            "submission_id": str(step.submission_id) if step.submission_id else None,
+            "dossier_id": str(step.dossier_id) if step.dossier_id else None,
             "document_type_name": "",  # Would join through submission.document_type
             "priority": step.submission.priority if step.submission else "normal",
             "started_at": step.started_at.isoformat() if step.started_at else None,
             "expected_complete_by": step.expected_complete_by.isoformat() if step.expected_complete_by else None,
             "is_delayed": is_delayed,
+            "summary_preview": summary_preview,
         })
 
     return {"items": items, "total": total, "page": page}

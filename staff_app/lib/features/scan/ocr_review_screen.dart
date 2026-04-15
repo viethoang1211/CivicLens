@@ -47,13 +47,7 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('OCR Review - Page ${_currentPage + 1}/${widget.pages.length}'),
-        actions: [
-          TextButton(
-            onPressed: _submitCorrections,
-            child: const Text('Submit', style: TextStyle(color: Colors.white)),
-          ),
-        ],
+        title: Text('Xem lại OCR - Trang ${_currentPage + 1}/${widget.pages.length}'),
       ),
       body: Column(
         children: [
@@ -65,7 +59,7 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
                 onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
                 icon: const Icon(Icons.arrow_back),
               ),
-              Text('Page ${_currentPage + 1} of ${widget.pages.length}'),
+              Text('Trang ${_currentPage + 1} / ${widget.pages.length}'),
               IconButton(
                 onPressed: _currentPage < widget.pages.length - 1
                     ? () => setState(() => _currentPage++)
@@ -104,7 +98,22 @@ class _OcrReviewScreenState extends State<OcrReviewScreen> {
                 textAlignVertical: TextAlignVertical.top,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
-                  hintText: 'OCR extracted text',
+                  hintText: 'Nội dung OCR',
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton.icon(
+                onPressed: _submitCorrections,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Xác nhận & Tiếp tục', style: TextStyle(fontSize: 16)),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),

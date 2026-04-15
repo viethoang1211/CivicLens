@@ -8,8 +8,11 @@ import 'features/auth/staff_auth_screen.dart';
 import 'features/dossier/case_type_selector_screen.dart';
 import 'features/dossier/guided_capture_screen.dart';
 import 'features/review/department_queue_screen.dart';
+import 'features/classify/classification_review_screen.dart';
+import 'features/classify/route_confirmation_screen.dart';
 import 'features/scan/create_submission_screen.dart';
 import 'features/scan/multi_page_scan.dart';
+import 'features/scan/ocr_review_screen.dart';
 import 'features/search/search_screen.dart';
 
 /// Single source of truth for backend URL across entire app.
@@ -66,6 +69,8 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
   late final ApiClient apiClient;
   late final DossierApi dossierApi;
   late final StaffSubmissionsApi submissionsApi;
+  late final StaffClassificationApi classificationApi;
+  late final StaffRoutingApi routingApi;
   late final SearchApiClient searchApiClient;
   List<DossierListItemDto> _draftDossiers = [];
   final _storage = const FlutterSecureStorage();
@@ -79,6 +84,8 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
     apiClient = ApiClient(baseUrl: kApiBaseUrl);
     dossierApi = DossierApi(apiClient);
     submissionsApi = StaffSubmissionsApi(apiClient);
+    classificationApi = StaffClassificationApi(apiClient);
+    routingApi = StaffRoutingApi(apiClient);
     searchApiClient = SearchApiClient(apiClient);
     _loadTokenAndData();
   }
@@ -483,11 +490,88 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
       // Step 5: Finalize scan (triggers OCR)
       await submissionsApi.finalizeScan(submissionId);
 
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // dismiss progress dialog
+
+      // Step 6: Poll for OCR results
+      _showProgressDialog(context, 'OCR đang xử lý...');
+      Map<String, dynamic> ocrResult;
+      while (true) {
+        await Future.delayed(const Duration(seconds: 3));
+        ocrResult = await submissionsApi.getOcrResults(submissionId);
+        if (ocrResult['status'] != 'ocr_processing') break;
+      }
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // dismiss OCR progress dialog
+
+      // Step 7: OCR review
+      final ocrPages = (ocrResult['pages'] as List).cast<Map<String, dynamic>>();
+      final corrections = await Navigator.of(context).push<List<Map<String, dynamic>>>(
+        MaterialPageRoute(
+          builder: (_) => OcrReviewScreen(submissionId: submissionId, pages: ocrPages),
+        ),
+      );
+      if (!context.mounted) return;
+
+      // Step 8: Submit corrections if any
+      if (corrections != null && corrections.isNotEmpty) {
+        await submissionsApi.submitCorrections(
+          submissionId: submissionId,
+          pages: corrections,
+        );
+      }
+
+      // Step 9: Get classification
+      _showProgressDialog(context, 'AI đang phân loại...');
+      Map<String, dynamic> classificationData;
+      while (true) {
+        await Future.delayed(const Duration(seconds: 2));
+        try {
+          classificationData = await classificationApi.getClassification(submissionId);
+          break;
+        } catch (_) {
+          // Classification not ready yet (409), keep polling
+        }
+      }
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // dismiss classification progress dialog
+
+      // Step 10: Classification review & confirm
+      final confirmResult = await Navigator.of(context).push<Map<String, dynamic>>(
+        MaterialPageRoute(
+          builder: (_) => ClassificationReviewScreen(
+            submissionId: submissionId,
+            classificationData: classificationData,
+          ),
+        ),
+      );
+      if (confirmResult == null || !context.mounted) return;
+
+      await classificationApi.confirmClassification(
+        submissionId: submissionId,
+        documentTypeId: confirmResult['document_type_id'] as String,
+        templateData: confirmResult['template_data'] as Map<String, dynamic>?,
+        classificationMethod: confirmResult['classification_method'] as String? ?? 'ai_confirmed',
+      );
+
+      // Step 11: Route submission
+      final routeResult = await routingApi.routeSubmission(submissionId);
+      if (!context.mounted) return;
+
+      final workflowSteps = (routeResult['workflow_steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => RouteConfirmationScreen(
+            submissionId: submissionId,
+            workflowSteps: workflowSteps,
+          ),
+        ),
+      );
+
       if (context.mounted) {
-        Navigator.of(context).pop(); // dismiss progress dialog
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã tải lên ${pages.length} trang. OCR đang xử lý...'),
+          const SnackBar(
+            content: Text('Hồ sơ đã được phân loại và chuyển tiếp thành công!'),
             backgroundColor: Colors.green,
           ),
         );

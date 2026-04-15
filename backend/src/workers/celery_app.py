@@ -19,4 +19,8 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
 )
 
-celery_app.autodiscover_tasks(["src.workers"])
+celery_app.autodiscover_tasks([
+    "src.workers.ocr_worker",
+    "src.workers.classification_worker",
+    "src.workers.summarization_worker",
+])

@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     # Alibaba Cloud Model Studio (dashscope)
     dashscope_api_key: str = ""
 
-    # Celery / RocketMQ
-    celery_broker_url: str = "rocketmq://localhost:9876"
+    # Celery
+    celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
 
     # VNeID OAuth

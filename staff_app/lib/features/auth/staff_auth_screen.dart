@@ -14,6 +14,7 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
   final _passwordController = TextEditingController();
   final _storage = const FlutterSecureStorage();
   bool _loading = false;
+  bool _obscurePassword = true;
   String? _error;
 
   Future<void> _login() async {
@@ -37,8 +38,25 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } on DioException catch (e) {
+      String msg;
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout) {
+        msg = 'Kết nối quá thời gian chờ. Vui lòng thử lại.';
+      } else if (e.type == DioExceptionType.connectionError) {
+        msg = 'Không thể kết nối tới máy chủ. Kiểm tra kết nối mạng.';
+      } else if (e.response != null) {
+        final data = e.response?.data;
+        if (data is Map && data['detail'] != null) {
+          msg = data['detail'];
+        } else {
+          msg = 'Lỗi máy chủ (${e.response?.statusCode}). Vui lòng thử lại.';
+        }
+      } else {
+        msg = 'Lỗi kết nối: ${e.message ?? "không xác định"}';
+      }
       setState(() {
-        _error = e.response?.data?['detail'] ?? 'Login failed. Please try again.';
+        _error = msg;
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -95,10 +113,14 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
-                  obscureText: true,
+                  obscureText: _obscurePassword,
                   decoration: InputDecoration(
                     labelText: 'Mật khẩu',
                     prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    ),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     filled: true,
                     fillColor: cs.surfaceContainerHighest.withAlpha(80),

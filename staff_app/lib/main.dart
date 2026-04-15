@@ -12,6 +12,12 @@ import 'features/scan/create_submission_screen.dart';
 import 'features/scan/multi_page_scan.dart';
 import 'features/search/search_screen.dart';
 
+/// Single source of truth for backend URL across entire app.
+const kApiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://10.0.2.2:8000',
+);
+
 void main() {
   runApp(const StaffApp());
 }
@@ -42,7 +48,7 @@ class StaffApp extends StatelessWidget {
       ),
       initialRoute: '/login',
       routes: {
-        '/login': (_) => const StaffAuthScreen(),
+        '/login': (_) => StaffAuthScreen(apiBaseUrl: kApiBaseUrl),
         '/home': (_) => const _StaffHomeScreen(),
       },
     );
@@ -67,12 +73,7 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
   @override
   void initState() {
     super.initState();
-    apiClient = ApiClient(
-      baseUrl: const String.fromEnvironment(
-        'API_BASE_URL',
-        defaultValue: 'http://10.0.2.2:8000',
-      ),
-    );
+    apiClient = ApiClient(baseUrl: kApiBaseUrl);
     dossierApi = DossierApi(apiClient);
     submissionsApi = StaffSubmissionsApi(apiClient);
     searchApiClient = SearchApiClient(apiClient);

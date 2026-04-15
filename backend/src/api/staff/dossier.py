@@ -148,28 +148,33 @@ def _build_dossier_response(dossier: Dossier, completeness: dict | None = None) 
 # POST /v1/staff/dossiers — T012
 # ---------------------------------------------------------------------------
 
+
+class _CreateDossierBody(BaseModel):
+    citizen_id_number: str
+    case_type_id: uuid.UUID
+    security_classification: int = 0
+    priority: str = "normal"
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_dossier(
-    citizen_id_number: str,
-    case_type_id: uuid.UUID,
-    security_classification: int = 0,
-    priority: str = "normal",
+    body: _CreateDossierBody,
     staff: StaffIdentity = Depends(get_current_staff),
     db: AsyncSession = Depends(get_db),
 ):
-    if security_classification < 0 or security_classification > 3:
+    if body.security_classification < 0 or body.security_classification > 3:
         raise HTTPException(status_code=422, detail="security_classification must be 0–3")
-    if priority not in ("normal", "urgent"):
+    if body.priority not in ("normal", "urgent"):
         raise HTTPException(status_code=422, detail="priority must be 'normal' or 'urgent'")
 
-    citizen_result = await db.execute(select(Citizen).where(Citizen.id_number == citizen_id_number))
+    citizen_result = await db.execute(select(Citizen).where(Citizen.id_number == body.citizen_id_number))
     citizen = citizen_result.scalar_one_or_none()
     if citizen is None:
         raise HTTPException(status_code=404, detail="Citizen not found. Verify CCCD number.")
 
     ct_result = await db.execute(
         select(CaseType)
-        .where(CaseType.id == case_type_id)
+        .where(CaseType.id == body.case_type_id)
         .options(
             selectinload(CaseType.requirement_groups).selectinload(DocumentRequirementGroup.slots).selectinload(
                 DocumentRequirementSlot.document_type
@@ -186,8 +191,8 @@ async def create_dossier(
         citizen_id=citizen.id,
         submitted_by_staff_id=staff.staff_id,
         case_type_id=case_type.id,
-        security_classification=security_classification,
-        priority=priority,
+        security_classification=body.security_classification,
+        priority=body.priority,
         status="draft",
         requirement_snapshot=await dossier_service.build_requirement_snapshot(case_type, db),
     )

@@ -35,7 +35,7 @@ class _VneidAuthScreenState extends State<VneidAuthScreen> {
     // Listen for incoming deep links (VNeID callback)
     _linkSub = _appLinks.uriLinkStream.listen(_handleDeepLink);
     // Also check if the app was opened via a deep link (cold start)
-    _appLinks.getInitialLink().then((uri) {
+    _appLinks.getInitialAppLink().then((uri) {
       if (uri != null) _handleDeepLink(uri);
     });
   }

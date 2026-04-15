@@ -1,11 +1,9 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import get_db
-from src.models.submission import Submission
 from src.security.abac import check_submission_clearance
 from src.security.auth import StaffIdentity, get_current_staff
 from src.services.routing_service import create_workflow_for_submission
@@ -27,5 +25,4 @@ async def route_submission(
     if not submission.document_type_id:
         raise HTTPException(status_code=409, detail="Submission must be classified before routing")
 
-    result = await create_workflow_for_submission(db, submission)
-    return result
+    return await create_workflow_for_submission(db, submission)

@@ -1,7 +1,6 @@
 """Unit tests for workflow_service advance_workflow dual-owner mode."""
 
 import uuid
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -186,7 +185,10 @@ class TestAdvanceWorkflowDossierMode:
 
         with (
             patch("src.services.workflow_service.notify_dossier_status_change", new_callable=AsyncMock) as mock_notify,
-            patch("src.services.workflow_service._set_dossier_retention_expiry", new_callable=AsyncMock) as mock_retention,
+            patch(
+                "src.services.workflow_service._set_dossier_retention_expiry",
+                new_callable=AsyncMock,
+            ) as mock_retention,
         ):
             from src.services.workflow_service import advance_workflow
             result = await advance_workflow(db, mock_dossier_step, "approved")

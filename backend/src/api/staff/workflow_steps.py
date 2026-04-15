@@ -127,8 +127,7 @@ async def complete_step(
         raise HTTPException(404, "Workflow step not found")
 
     staff_member = await validate_reviewer(db, step, staff.id)
-    outcome = await process_review(db, step, staff_member, body.result, body.comment, body.target_citizen)
-    return outcome
+    return await process_review(db, step, staff_member, body.result, body.comment, body.target_citizen)
 
 
 # ── POST /{id}/consultations — cross-dept consultation ──

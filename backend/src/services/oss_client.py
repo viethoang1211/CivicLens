@@ -1,5 +1,4 @@
-import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import oss2
 
@@ -12,7 +11,7 @@ class OSSClient:
         self.bucket = oss2.Bucket(auth, settings.oss_endpoint, settings.oss_bucket_name)
 
     def generate_key(self, submission_id: str, page_number: int) -> str:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return f"scans/{now.year}/{now.month:02d}/{now.day:02d}/{submission_id}/page_{page_number:03d}.jpg"
 
     def upload(self, key: str, data: bytes) -> str:

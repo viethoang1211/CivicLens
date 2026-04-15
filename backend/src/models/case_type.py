@@ -4,7 +4,7 @@ from sqlalchemy import Boolean, ForeignKey, Integer, SmallInteger, String, Text,
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models.base import Base, UUIDPrimaryKey, TimestampMixin, CreatedAtMixin
+from src.models.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKey
 
 
 class CaseType(Base, UUIDPrimaryKey, TimestampMixin):

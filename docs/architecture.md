@@ -78,7 +78,7 @@ backend/
 │   │       └── notifications.py   # Push notification history
 │   ├── models/              # SQLAlchemy ORM models (17 entities)
 │   ├── services/            # Business logic layer
-│   │   ├── ai_client.py          # Qwen VL OCR + classification + slot validation + OCR confidence estimation
+│   │   ├── ai_client.py          # Qwen VL OCR + classification + slot validation + summarization + entity extraction
 │   │   ├── oss_client.py         # Storage abstraction (OSS or local filesystem)
 │   │   ├── local_storage.py      # Local filesystem storage backend
 │   │   ├── dossier_service.py    # Dossier completeness, reference numbers, workflow
@@ -89,7 +89,10 @@ backend/
 │   │   ├── audit_service.py      # Immutable audit logging + SLS
 │   │   ├── quality_service.py    # Image quality assessment
 │   │   ├── template_service.py   # Template schema validation
-│   │   └── submission_service.py # Duplicate detection
+│   │   ├── submission_service.py # Duplicate detection
+│   │   ├── search_service.py     # Cross-department full-text search (FTS + trigram)
+│   │   ├── summarization_service.py  # AI summarization + entity extraction
+│   │   └── analytics_service.py  # SLA metrics aggregation
 │   ├── security/
 │   │   ├── auth.py               # JWT encode/decode, identity deps
 │   │   ├── abac.py               # Clearance-based access control
@@ -97,7 +100,9 @@ backend/
 │   └── workers/
 │       ├── celery_app.py         # Celery configuration
 │       ├── ocr_worker.py         # Async OCR pipeline
-│       └── classification_worker.py  # Async classification
+│       ├── classification_worker.py  # Async classification → chains to summarization
+│       ├── summarization_worker.py   # Async AI summarization (submission + dossier)
+│       └── backfill_summaries.py     # Management command for backfilling existing data
 ├── alembic/                 # Database migrations
 ├── Dockerfile               # Production container (ENV PYTHONPATH=/app)
 └── pyproject.toml           # Dependencies + tooling config
@@ -230,7 +235,7 @@ Both backends implement the same interface: `upload()`, `download()`, `delete()`
 |---------|-----------|----------|
 | Sync request/response | Mobile apps → Backend API | HTTPS + JWT |
 | Async task execution | API → Celery Workers | RocketMQ |
-| Task chaining | OCR Worker → Classification Worker | Celery chain |
+| Task chaining | OCR Worker → Classification Worker → Summarization Worker | Celery chain |
 | Push notifications | Backend → Citizen app | EMAS Push |
 | Background sync | Staff app → Backend API | Workmanager + HTTPS |
 | Audit shipping | Backend → SLS | Alibaba Log SDK |

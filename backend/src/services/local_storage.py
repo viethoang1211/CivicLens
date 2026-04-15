@@ -1,6 +1,4 @@
-import io
-import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from src.config import settings
@@ -14,7 +12,7 @@ class LocalStorageClient:
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def generate_key(self, submission_id: str, page_number: int) -> str:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return f"scans/{now.year}/{now.month:02d}/{now.day:02d}/{submission_id}/page_{page_number:03d}.jpg"
 
     def upload(self, key: str, data: bytes) -> str:

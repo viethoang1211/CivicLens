@@ -1,9 +1,9 @@
 import json
+import logging
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
 
 from src.config import settings
 from src.models.document_type import DocumentType
@@ -111,6 +111,13 @@ def run_classification(self, submission_id: str):
         submission.status = "pending_classification"  # Stays pending until staff confirms
         db.commit()
 
+    # Chain to summarization after successful classification
+    try:
+        from src.workers.summarization_worker import generate_summary
+        generate_summary.delay(submission_id)
+    except Exception:
+        logging.getLogger(__name__).exception("Summarization enqueue failed")
+
 
 @celery_app.task(name="classification.validate_slot", bind=True, max_retries=3)
 def validate_document_slot(self, dossier_document_id: str):
@@ -161,7 +168,7 @@ def validate_document_slot(self, dossier_document_id: str):
         try:
             match_result = ai_client.validate_document_slot(image_data, doc_type.classification_prompt)
         except Exception as exc:
-            raise self.retry(exc=exc, countdown=30)
+            raise self.retry(exc=exc, countdown=30) from exc
 
         doc.ai_match_result = match_result
         db.commit()

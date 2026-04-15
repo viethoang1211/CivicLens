@@ -1,11 +1,11 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, SmallInteger, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, SmallInteger, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models.base import Base, UUIDPrimaryKey, TimestampMixin
+from src.models.base import Base, TimestampMixin, UUIDPrimaryKey
 
 
 class Submission(Base, UUIDPrimaryKey, TimestampMixin):
@@ -30,6 +30,8 @@ class Submission(Base, UUIDPrimaryKey, TimestampMixin):
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     retention_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ai_summary: Mapped[str | None] = mapped_column(Text)
+    ai_summary_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     citizen = relationship("Citizen", back_populates="submissions")
     submitted_by_staff = relationship("StaffMember", foreign_keys=[submitted_by_staff_id])

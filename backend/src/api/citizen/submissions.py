@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -10,7 +10,6 @@ from src.dependencies import get_db
 from src.models.department import Department
 from src.models.step_annotation import StepAnnotation
 from src.models.submission import Submission
-from src.models.workflow_step import WorkflowStep
 from src.security.auth import CitizenIdentity, get_current_citizen
 
 router = APIRouter()
@@ -40,7 +39,7 @@ async def list_submissions(
     result = await db.execute(query)
     submissions = result.scalars().all()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     items = []
     for sub in submissions:
         current_step = None
@@ -92,7 +91,7 @@ async def get_submission_detail(
     if submission is None:
         raise HTTPException(status_code=404, detail="Submission not found")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     workflow = []
     for step in sorted(submission.workflow_steps, key=lambda s: s.step_order):
         dept_result = await db.execute(select(Department).where(Department.id == step.department_id))

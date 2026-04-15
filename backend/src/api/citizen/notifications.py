@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -71,7 +71,7 @@ async def mark_notification_read(
         raise HTTPException(status_code=404, detail="Notification not found")
 
     notification.is_read = True
-    notification.read_at = datetime.now(timezone.utc)
+    notification.read_at = datetime.now(UTC)
     await db.commit()
 
     return {"id": str(notification.id), "is_read": True, "read_at": notification.read_at.isoformat()}

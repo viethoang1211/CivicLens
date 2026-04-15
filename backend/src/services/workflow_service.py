@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,7 +53,7 @@ async def _set_dossier_retention_expiry(db: AsyncSession, dossier: Dossier) -> N
 
 async def detect_delayed_steps(db: AsyncSession) -> list[WorkflowStep]:
     """Return all active workflow steps that have exceeded their expected_complete_by."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db.execute(
         select(WorkflowStep).where(
             WorkflowStep.status == "active",
@@ -69,7 +69,7 @@ async def advance_workflow(db: AsyncSession, current_step: WorkflowStep, result:
 
     Supports both submission-owned and dossier-owned workflow steps.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     current_step.status = "completed"
     current_step.completed_at = now

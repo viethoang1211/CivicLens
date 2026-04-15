@@ -1,5 +1,6 @@
+import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,7 +44,7 @@ async def _ship_to_sls(entry: AuditLogEntry) -> None:
     """
     try:
         from src.config import get_settings
-        settings = get_settings()
+        get_settings()
 
         log_record = {
             "id": str(entry.id),
@@ -53,7 +54,7 @@ async def _ship_to_sls(entry: AuditLogEntry) -> None:
             "resource_type": entry.resource_type,
             "resource_id": str(entry.resource_id) if entry.resource_id else None,
             "clearance_check_result": entry.clearance_check_result,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         # Production: use aliyun.log.PutLogsRequest to ship to SLS logstore
@@ -66,4 +67,4 @@ async def _ship_to_sls(entry: AuditLogEntry) -> None:
 
     except Exception:
         # SLS shipping failure must never break the main flow
-        pass
+        logging.getLogger(__name__).exception("SLS audit shipping failed")

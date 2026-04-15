@@ -45,37 +45,61 @@ class _MultiPageScanState extends State<MultiPageScan> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Pages (${_pages.length})'),
-        actions: [
-          if (_pages.isNotEmpty)
-            TextButton(
-              onPressed: _finalize,
-              child: const Text('Done', style: TextStyle(color: Colors.white)),
-            ),
-        ],
+        title: Text('Trang đã quét (${_pages.length})'),
       ),
       body: _pages.isEmpty
-          ? const Center(child: Text('No pages scanned yet. Tap + to add.'))
-          : ReorderableListView.builder(
-              itemCount: _pages.length,
-              onReorder: _reorderPages,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  key: ValueKey(index),
-                  leading: SizedBox(
-                    width: 50,
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.document_scanner_outlined, size: 64, color: cs.onSurface.withAlpha(100)),
+                  const SizedBox(height: 16),
+                  Text('Chưa có trang nào. Nhấn + để quét.', style: TextStyle(color: cs.onSurface.withAlpha(150))),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: ReorderableListView.builder(
+                    itemCount: _pages.length,
+                    onReorder: _reorderPages,
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        key: ValueKey(index),
+                        leading: SizedBox(
+                          width: 50,
+                          height: 50,
+                          child: Image.file(_pages[index], fit: BoxFit.cover),
+                        ),
+                        title: Text('Trang ${index + 1}'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () => _removePage(index),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
                     height: 50,
-                    child: Image.file(_pages[index], fit: BoxFit.cover),
+                    child: FilledButton.icon(
+                      onPressed: _finalize,
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: Text('Hoàn tất (${_pages.length} trang)', style: const TextStyle(fontSize: 16)),
+                      style: FilledButton.styleFrom(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
                   ),
-                  title: Text('Page ${index + 1}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () => _removePage(index),
-                  ),
-                );
-              },
+                ),
+              ],
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addPage,

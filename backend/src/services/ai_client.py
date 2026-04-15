@@ -1,4 +1,5 @@
 import base64
+import re
 
 import dashscope
 from dashscope import MultiModalConversation
@@ -21,7 +22,10 @@ class AIClient:
                 "role": "user",
                 "content": [
                     {"image": f"data:image/jpeg;base64,{image_b64}"},
-                    {"text": "Extract all text from this document image. Include both printed and handwritten text. Output the raw text only."},
+                    {
+                        "text": "Extract all text from this document image. "
+                        "Include both printed and handwritten text. Output the raw text only."
+                    },
                 ],
             }
         ]
@@ -82,7 +86,8 @@ Return a JSON object with the field names as keys and extracted values. Use null
 
         Returns: {"match": bool, "confidence": float, "reason": str}
         """
-        import base64, json as _json
+        import base64
+        import json as _json
 
         image_b64 = base64.b64encode(image_data).decode("utf-8")
         prompt = (
@@ -121,10 +126,113 @@ Return a JSON object with the field names as keys and extracted values. Use null
             return {"match": False, "confidence": 0.0, "reason": "Unable to parse AI response"}
 
 
+    def summarize_document(self, ocr_text: str, document_type_name: str) -> dict:
+        """Summarize a document's OCR text with entity extraction.
+
+        Returns: {"summary": str, "key_points": list, "entities": dict}
+        """
+        import json as _json
+
+        prompt = (
+            f"Tóm tắt tài liệu sau trong 2-3 câu ngắn gọn bằng tiếng Việt.\n"
+            f"Nêu rõ: (1) loại tài liệu, (2) tên người liên quan, (3) thông tin chính.\n\n"
+            f"Ngoài tóm tắt, trích xuất các thực thể chính.\n\n"
+            f"Loại tài liệu: {document_type_name}\n"
+            f"Nội dung OCR:\n{ocr_text[:8000]}\n\n"
+            f'Trả về JSON:\n'
+            f'{{\n'
+            f'  "summary": "Tóm tắt 2-3 câu",\n'
+            f'  "key_points": ["điểm chính 1", "điểm chính 2"],\n'
+            f'  "entities": {{\n'
+            f'    "persons": ["Tên người 1"],\n'
+            f'    "id_numbers": ["012345678901"],\n'
+            f'    "dates": ["15/03/1990"],\n'
+            f'    "addresses": ["123 Đường ABC, Quận 1, TP.HCM"],\n'
+            f'    "amounts": ["1.000.000 VNĐ"]\n'
+            f'  }}\n'
+            f'}}'
+        )
+
+        response = dashscope.Generation.call(
+            model=self.CLASSIFICATION_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Bạn là trợ lý hành chính chuyên tóm tắt tài liệu hành chính Việt Nam."
+                    "\nTrả lời bằng JSON hợp lệ, KHÔNG thêm markdown.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            result_format="message",
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"Summarization API error: {response.code} {response.message}")
+
+        raw = response.output.choices[0].message.content
+        try:
+            cleaned = raw.strip() if isinstance(raw, str) else str(raw)
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
+            result = _json.loads(cleaned)
+            return {
+                "summary": str(result.get("summary", "")),
+                "key_points": list(result.get("key_points", [])),
+                "entities": result.get("entities", {}),
+            }
+        except (_json.JSONDecodeError, ValueError):
+            return {"summary": "", "key_points": [], "entities": {}}
+
+    def summarize_dossier(self, case_type_name: str, reference_number: str, document_summaries: str) -> dict:
+        """Summarize a dossier by aggregating its document summaries.
+
+        Returns: {"summary": str, "key_points": list}
+        """
+        import json as _json
+
+        prompt = (
+            f"Tóm tắt hồ sơ sau trong 2-3 câu ngắn gọn bằng tiếng Việt.\n"
+            f"Nêu rõ: (1) mục đích hồ sơ, (2) danh sách tài liệu, (3) thông tin chính.\n\n"
+            f"Loại hồ sơ: {case_type_name}\n"
+            f"Mã tham chiếu: {reference_number}\n"
+            f"Tài liệu đính kèm:\n{document_summaries[:8000]}\n\n"
+            f'Trả về JSON:\n'
+            f'{{\n'
+            f'  "summary": "Tóm tắt 2-3 câu",\n'
+            f'  "key_points": ["điểm chính 1", "điểm chính 2"]\n'
+            f'}}'
+        )
+
+        response = dashscope.Generation.call(
+            model=self.CLASSIFICATION_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Bạn là trợ lý hành chính chuyên tóm tắt hồ sơ hành chính Việt Nam."
+                    "\nTrả lời bằng JSON hợp lệ, KHÔNG thêm markdown.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            result_format="message",
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"Dossier summarization API error: {response.code} {response.message}")
+
+        raw = response.output.choices[0].message.content
+        try:
+            cleaned = raw.strip() if isinstance(raw, str) else str(raw)
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
+            result = _json.loads(cleaned)
+            return {
+                "summary": str(result.get("summary", "")),
+                "key_points": list(result.get("key_points", [])),
+            }
+        except (_json.JSONDecodeError, ValueError):
+            return {"summary": "", "key_points": []}
+
+
 ai_client = AIClient()
 
-
-import re
 
 # Vietnamese diacritics pattern: letters with diacritical marks common in Vietnamese
 _VIETNAMESE_PATTERN = re.compile(

@@ -1,6 +1,6 @@
 # public_sector Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-14
+Auto-generated from all feature plans. Last updated: 2026-04-15
 
 ## Active Technologies
 - Python 3.12 (backend), Dart/Flutter 3.24+ (staff & citizen apps) + FastAPI, SQLAlchemy 2 (async), Alembic, Celery, dashscope (Alibaba Cloud AI), OSS client (002-case-based-submission)
@@ -9,6 +9,7 @@ Auto-generated from all feature plans. Last updated: 2026-04-14
 - PostgreSQL 16 (JSONB), Alibaba Cloud OSS / local filesystem (003-guided-document-capture)
 - Python 3.12 (backend) + FastAPI, SQLAlchemy 2 (async), Celery, dashscope (Alibaba Cloud AI) (004-business-flow-review)
 - PostgreSQL 16 (JSONB), local filesystem (004-business-flow-review)
+- PostgreSQL 16 (JSONB, tsvector + GIN, pg_trgm + unaccent extensions) (005-search-and-summarization)
 
 - Python 3.12 (backend), Dart/Flutter 3.24+ (mobile apps) + FastAPI, Celery, SQLAlchemy, Alembic, Alibaba Cloud SDK (dashscope), Flutter (001-ai-document-processing)
 
@@ -28,9 +29,9 @@ cd src && pytest && ruff check .
 Python 3.12 (backend), Dart/Flutter 3.24+ (mobile apps): Follow standard conventions
 
 ## Recent Changes
+- 005-search-and-summarization: Added Python 3.12 (backend), Dart/Flutter 3.24+ (staff_app, shared_dart) + FastAPI, SQLAlchemy 2 (async), Alembic, Celery, dashscope (Alibaba Cloud AI), Dio (Flutter HTTP)
 - 004-business-flow-review: Added Python 3.12 (backend) + FastAPI, SQLAlchemy 2 (async), Celery, dashscope (Alibaba Cloud AI)
 - 003-guided-document-capture: Added Python 3.12 (backend), Dart/Flutter 3.24+ (staff_app, shared_dart) + FastAPI, SQLAlchemy 2 (async), Alembic, Celery, dashscope (Alibaba Cloud AI), Dio (Flutter HTTP)
-- 002-case-based-submission: Added Python 3.12 (backend), Dart/Flutter 3.24+ (staff & citizen apps) + FastAPI, SQLAlchemy 2 (async), Alembic, Celery, dashscope (Alibaba Cloud AI), OSS client
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -1,6 +1,5 @@
 """Unit tests for classification worker confidence threshold enforcement."""
 
-import json
 import uuid
 from unittest.mock import MagicMock, patch
 

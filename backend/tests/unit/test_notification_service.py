@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.services.notification_service import (
-    notify_dossier_step_advanced,
     notify_dossier_status_change,
+    notify_dossier_step_advanced,
 )
 
 

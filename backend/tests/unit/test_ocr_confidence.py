@@ -24,7 +24,10 @@ def test_short_text_under_20_chars():
 
 
 def test_non_vietnamese_text_returns_03():
-    text = "This is a long English text that has no Vietnamese diacritical characters at all and is over twenty characters"
+    text = (
+        "This is a long English text that has no Vietnamese diacritical"
+        " characters at all and is over twenty characters"
+    )
     assert estimate_ocr_confidence(text) == 0.3
 
 

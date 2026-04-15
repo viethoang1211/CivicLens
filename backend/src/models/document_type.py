@@ -2,7 +2,7 @@ from sqlalchemy import Boolean, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models.base import Base, UUIDPrimaryKey, TimestampMixin
+from src.models.base import Base, TimestampMixin, UUIDPrimaryKey
 
 
 class DocumentType(Base, UUIDPrimaryKey, TimestampMixin):

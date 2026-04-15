@@ -1,6 +1,6 @@
+import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, validator
@@ -15,11 +15,12 @@ from src.models.document_requirement import DocumentRequirementGroup, DocumentRe
 from src.models.dossier import Dossier
 from src.models.dossier_document import DossierDocument
 from src.models.scanned_page import ScannedPage
-from src.models.workflow_step import WorkflowStep
 from src.security.auth import StaffIdentity, get_current_staff
 from src.services import audit_service, dossier_service
 from src.services.oss_client import oss_client
 from src.services.quality_service import assess_image_quality
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/staff/dossiers", tags=["staff-dossiers"])
 
@@ -229,7 +230,7 @@ async def list_dossiers(
     if citizen_id:
         query = query.where(Dossier.citizen_id == citizen_id)
 
-    total_result = await db.execute(select(Dossier.id).where(*query.whereclause_list if hasattr(query, 'whereclause_list') else []))
+    await db.execute(select(Dossier.id).where(*query.whereclause_list if hasattr(query, 'whereclause_list') else []))
     offset = (page - 1) * page_size
     paginated_query = query.offset(offset).limit(page_size)
     result = await db.execute(paginated_query)
@@ -237,7 +238,10 @@ async def list_dossiers(
 
     items = []
     for d in dossiers:
-        active_step = next((ws for ws in sorted(d.workflow_steps, key=lambda s: s.step_order) if ws.status == "active"), None)
+        active_step = next(
+            (ws for ws in sorted(d.workflow_steps, key=lambda s: s.step_order) if ws.status == "active"),
+            None,
+        )
         items.append({
             "id": str(d.id),
             "reference_number": d.reference_number,
@@ -348,7 +352,7 @@ async def upload_document(
             page_number=idx,
             image_oss_key=oss_key,
             image_quality_score=quality_result["score"],
-            synced_at=datetime.now(timezone.utc),
+            synced_at=datetime.now(UTC),
         )
         db.add(scanned_page)
         pages_out.append({"page_number": idx, "oss_key": oss_key, "quality_score": quality_result["score"]})
@@ -364,7 +368,7 @@ async def upload_document(
         from src.workers.classification_worker import validate_document_slot
         validate_document_slot.delay(str(dossier_doc.id))
     except Exception:
-        pass  # AI validation is best-effort; don't fail the upload
+        logger.exception("AI validation enqueue failed")
 
     return {
         "id": str(dossier_doc.id),
@@ -413,7 +417,7 @@ async def delete_document(
             elif hasattr(oss_client, 'bucket'):
                 oss_client.bucket.delete_object(page.image_oss_key)
         except Exception:
-            pass
+            logger.exception("Failed to delete stored file %s", page.image_oss_key)
         await db.delete(page)
 
     await db.delete(doc)
@@ -484,10 +488,9 @@ async def submit_dossier(
             detail={"error": "dossier_incomplete", "missing_groups": completeness["missing_groups"]},
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ref_num = await dossier_service.generate_reference_number(db, now.date())
 
-    from datetime import timedelta as _timedelta
     retention_years = dossier.case_type.retention_years if dossier.case_type else 5
 
     dossier.reference_number = ref_num
@@ -515,6 +518,13 @@ async def submit_dossier(
         metadata={"reference_number": ref_num, "status": dossier.status},
     )
 
+    # Trigger dossier-level AI summary generation
+    try:
+        from src.workers.summarization_worker import generate_dossier_summary
+        generate_dossier_summary.delay(str(dossier_id))
+    except Exception:
+        logger.exception("Dossier summarization enqueue failed")
+
     return {
         "id": str(dossier.id),
         "reference_number": ref_num,
@@ -530,11 +540,11 @@ async def submit_dossier(
 # ---------------------------------------------------------------------------
 
 class _DossierPatchBody(BaseModel):
-    priority: Optional[str] = None
+    priority: str | None = None
 
     @validator("priority")
     @classmethod
-    def _valid_priority(cls, v: Optional[str]) -> Optional[str]:
+    def _valid_priority(cls, v: str | None) -> str | None:
         if v is not None and v not in ("low", "normal", "high", "urgent"):
             raise ValueError("priority must be low/normal/high/urgent")
         return v

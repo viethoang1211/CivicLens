@@ -5,7 +5,7 @@ from sqlalchemy import CheckConstraint, DateTime, ForeignKey, SmallInteger, Stri
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models.base import Base, UUIDPrimaryKey, TimestampMixin
+from src.models.base import Base, TimestampMixin, UUIDPrimaryKey
 
 
 class WorkflowStep(Base, UUIDPrimaryKey, TimestampMixin):

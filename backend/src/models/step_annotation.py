@@ -4,7 +4,7 @@ from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.models.base import Base, UUIDPrimaryKey, CreatedAtMixin
+from src.models.base import Base, CreatedAtMixin, UUIDPrimaryKey
 
 
 class StepAnnotation(Base, UUIDPrimaryKey, CreatedAtMixin):

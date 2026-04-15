@@ -37,7 +37,7 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "COM", "C4", "T20", "RET", "SIM"]
-ignore = ["S101", "COM812"]
+ignore = ["S101", "COM812", "B008"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

@@ -5,7 +5,6 @@ from review through workflow advancement, notifications, and completion.
 """
 
 import uuid
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -140,7 +139,10 @@ class TestFullDossierPipeline:
 
         with (
             patch("src.services.workflow_service.notify_dossier_status_change", new_callable=AsyncMock) as mock_status,
-            patch("src.services.workflow_service._set_dossier_retention_expiry", new_callable=AsyncMock) as mock_retention,
+            patch(
+                "src.services.workflow_service._set_dossier_retention_expiry",
+                new_callable=AsyncMock,
+            ) as mock_retention,
         ):
             result2 = await advance_workflow(db, step2, "approved")
 

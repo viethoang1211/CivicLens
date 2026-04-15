@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_dart/shared_dart.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class StaffAuthScreen extends StatefulWidget {
-  const StaffAuthScreen({super.key});
+  final String apiBaseUrl;
+  const StaffAuthScreen({super.key, required this.apiBaseUrl});
 
   @override
   State<StaffAuthScreen> createState() => _StaffAuthScreenState();
@@ -13,6 +15,7 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
   final _employeeIdController = TextEditingController();
   final _passwordController = TextEditingController();
   final _storage = const FlutterSecureStorage();
+  late final ApiClient _apiClient = ApiClient(baseUrl: widget.apiBaseUrl);
   bool _loading = false;
   bool _obscurePassword = true;
   String? _error;
@@ -24,8 +27,7 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
     });
 
     try {
-      final dio = Dio(BaseOptions(baseUrl: const String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8000')));
-      final response = await dio.post('/v1/staff/auth/login', data: {
+      final response = await _apiClient.post('/v1/staff/auth/login', data: {
         'employee_id': _employeeIdController.text.trim(),
         'password': _passwordController.text,
       });
@@ -44,7 +46,7 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
           e.type == DioExceptionType.sendTimeout) {
         msg = 'Kết nối quá thời gian chờ. Vui lòng thử lại.';
       } else if (e.type == DioExceptionType.connectionError) {
-        msg = 'Không thể kết nối tới máy chủ. Kiểm tra kết nối mạng.';
+        msg = 'Không thể kết nối tới máy chủ (${widget.apiBaseUrl}).';
       } else if (e.response != null) {
         final data = e.response?.data;
         if (data is Map && data['detail'] != null) {
@@ -170,7 +172,7 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
                 ),
                 const SizedBox(height: 48),
                 Text(
-                  'Public Sector Platform v0.3.0',
+                  'v0.4.0 • ${widget.apiBaseUrl}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: cs.onSurface.withAlpha(100),
                   ),

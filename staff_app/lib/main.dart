@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_dart/shared_dart.dart';
@@ -432,6 +433,14 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
         ),
       );
       unawaited(_loadDraftDossiers());
+    } on DioException catch (e) {
+      if (context.mounted) {
+        final detail = e.response?.data is Map ? e.response?.data['detail'] : null;
+        final msg = detail ?? 'Lỗi không xác định (${e.response?.statusCode})';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $msg')),
+        );
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -490,6 +499,15 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
             content: Text('Đã tải lên ${pages.length} trang. OCR đang xử lý...'),
             backgroundColor: Colors.green,
           ),
+        );
+      }
+    } on DioException catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == '/home');
+        final detail = e.response?.data is Map ? e.response?.data['detail'] : null;
+        final msg = detail ?? 'Lỗi không xác định (${e.response?.statusCode})';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $msg'), backgroundColor: Colors.red),
         );
       }
     } catch (e) {

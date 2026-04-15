@@ -36,10 +36,15 @@ async def _load_dossier_or_404(dossier_id: uuid.UUID, db: AsyncSession) -> Dossi
         select(Dossier)
         .where(Dossier.id == dossier_id)
         .options(
+            selectinload(Dossier.citizen),
             selectinload(Dossier.case_type).selectinload(CaseType.requirement_groups).selectinload(
                 DocumentRequirementGroup.slots
-            ),
+            ).selectinload(DocumentRequirementSlot.document_type),
             selectinload(Dossier.documents).selectinload(DossierDocument.scanned_pages),
+            selectinload(Dossier.documents).selectinload(DossierDocument.document_type),
+            selectinload(Dossier.documents).selectinload(DossierDocument.requirement_slot).selectinload(
+                DocumentRequirementSlot.document_type
+            ),
             selectinload(Dossier.workflow_steps),
         )
     )
@@ -92,8 +97,10 @@ def _build_document_list(dossier: Dossier) -> list[dict]:
     for doc in dossier.documents:
         docs_out.append({
             "id": str(doc.id),
+            "dossier_id": str(dossier.id),
             "requirement_slot_id": str(doc.requirement_slot_id) if doc.requirement_slot_id else None,
-            "slot_label": (
+            "document_type_id": str(doc.document_type_id) if doc.document_type_id else None,
+            "document_type_name": doc.document_type.name if doc.document_type else (
                 doc.requirement_slot.label_override or doc.requirement_slot.document_type.name
                 if doc.requirement_slot and doc.requirement_slot.document_type
                 else None
@@ -120,27 +127,48 @@ def _build_dossier_response(dossier: Dossier, completeness: dict | None = None) 
         for ws in sorted(dossier.workflow_steps, key=lambda s: s.step_order)
     ]
 
+    # Derive current_step and progress counts from workflow_steps
+    active_step = next((ws for ws in workflow_steps_out if ws["status"] == "active"), None)
+    current_step_out = None
+    if active_step:
+        current_step_out = {
+            "step_order": active_step["step_order"],
+            "department_name": active_step.get("department_name", f"Phòng {active_step['step_order']}"),
+            "status": active_step["status"],
+        }
+    total_steps = len(workflow_steps_out)
+    completed_steps = sum(1 for ws in workflow_steps_out if ws["status"] == "completed")
+
     return {
         "id": str(dossier.id),
         "reference_number": dossier.reference_number,
         "status": dossier.status,
+        # Flat fields for Flutter DTO compatibility
+        "citizen_id": str(dossier.citizen_id),
+        "citizen_name": dossier.citizen.full_name if dossier.citizen else None,
+        "case_type_id": str(dossier.case_type_id),
+        "case_type_name": dossier.case_type.name if dossier.case_type else None,
+        # Also keep nested for backwards compat
         "case_type": {
             "id": str(dossier.case_type_id),
             "code": dossier.case_type.code,
             "name": dossier.case_type.name,
         },
-        "citizen": {
-            "id": str(dossier.citizen_id),
-        },
         "security_classification": dossier.security_classification,
         "priority": dossier.priority,
+        "rejection_reason": dossier.rejection_reason,
         "requirement_snapshot": dossier.requirement_snapshot,
         "completeness": completeness,
         "requirement_groups": _build_group_list(dossier),
         "documents": _build_document_list(dossier),
         "workflow_steps": workflow_steps_out,
+        "current_step": current_step_out,
+        "total_steps": total_steps,
+        "completed_steps": completed_steps,
         "created_at": dossier.created_at.isoformat(),
         "updated_at": dossier.updated_at.isoformat(),
+        "submitted_at": dossier.submitted_at.isoformat() if dossier.submitted_at else None,
+        "completed_at": dossier.completed_at.isoformat() if dossier.completed_at else None,
     }
 
 
@@ -223,6 +251,7 @@ async def list_dossiers(
     query = (
         select(Dossier)
         .options(
+            selectinload(Dossier.citizen),
             selectinload(Dossier.case_type),
             selectinload(Dossier.workflow_steps),
         )
@@ -251,8 +280,10 @@ async def list_dossiers(
             "id": str(d.id),
             "reference_number": d.reference_number,
             "status": d.status,
+            "citizen_name": d.citizen.full_name if d.citizen else "",
             "case_type_name": d.case_type.name if d.case_type else None,
             "priority": d.priority,
+            "created_at": d.created_at.isoformat(),
             "submitted_at": d.submitted_at.isoformat() if d.submitted_at else None,
             "current_department_id": str(active_step.department_id) if active_step else None,
         })
@@ -379,8 +410,11 @@ async def upload_document(
         "id": str(dossier_doc.id),
         "dossier_id": str(dossier_id),
         "requirement_slot_id": str(requirement_slot_id),
+        "document_type_id": str(slot.document_type_id) if slot.document_type_id else None,
+        "document_type_name": slot.document_type.name if slot.document_type else None,
         "ai_match_result": None,
         "ai_match_overridden": False,
+        "staff_notes": dossier_doc.staff_notes,
         "page_count": len(pages_out),
         "pages": pages_out,
         "created_at": dossier_doc.created_at.isoformat(),
@@ -433,11 +467,15 @@ async def delete_document(
 # PATCH /v1/staff/dossiers/{dossier_id}/documents/{document_id}/override-ai — T038
 # ---------------------------------------------------------------------------
 
+class _OverrideAiBody(BaseModel):
+    staff_notes: str | None = None
+
+
 @router.patch("/{dossier_id}/documents/{document_id}/override-ai")
 async def override_ai(
     dossier_id: uuid.UUID,
     document_id: uuid.UUID,
-    staff_notes: str | None = None,
+    body: _OverrideAiBody,
     staff: StaffIdentity = Depends(get_current_staff),
     db: AsyncSession = Depends(get_db),
 ):
@@ -445,6 +483,9 @@ async def override_ai(
         select(DossierDocument).where(
             DossierDocument.id == document_id,
             DossierDocument.dossier_id == dossier_id,
+        ).options(
+            selectinload(DossierDocument.scanned_pages),
+            selectinload(DossierDocument.document_type),
         )
     )
     doc = doc_result.scalar_one_or_none()
@@ -458,16 +499,22 @@ async def override_ai(
         )
 
     doc.ai_match_overridden = True
-    if staff_notes is not None:
-        doc.staff_notes = staff_notes
+    if body.staff_notes is not None:
+        doc.staff_notes = body.staff_notes
     await db.commit()
     await db.refresh(doc)
 
     return {
         "id": str(doc.id),
+        "dossier_id": str(dossier_id),
+        "requirement_slot_id": str(doc.requirement_slot_id) if doc.requirement_slot_id else None,
+        "document_type_id": str(doc.document_type_id) if doc.document_type_id else None,
+        "document_type_name": doc.document_type.name if doc.document_type else None,
         "ai_match_result": doc.ai_match_result,
         "ai_match_overridden": doc.ai_match_overridden,
         "staff_notes": doc.staff_notes,
+        "page_count": len(doc.scanned_pages),
+        "created_at": doc.created_at.isoformat(),
     }
 
 

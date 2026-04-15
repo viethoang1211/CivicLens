@@ -53,7 +53,7 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Department Queue')),
+      appBar: AppBar(title: const Text('Hàng đợi phòng ban')),
       body: _buildBody(),
     );
   }
@@ -65,14 +65,31 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Error: $_error'),
-            const SizedBox(height: 8),
-            ElevatedButton(onPressed: _loadQueue, child: const Text('Retry')),
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 12),
+            Text('Lỗi: $_error', textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: _loadQueue,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Thử lại'),
+            ),
           ],
         ),
       );
     }
-    if (_items.isEmpty) return const Center(child: Text('No submissions in queue'));
+    if (_items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.inbox_rounded, size: 64, color: Colors.grey.shade300),
+            const SizedBox(height: 12),
+            const Text('Không có hồ sơ trong hàng đợi', style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
 
     return RefreshIndicator(
       onRefresh: _loadQueue,
@@ -97,7 +114,7 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Started: ${item['started_at'] ?? 'N/A'}'),
+                  Text('Bắt đầu: ${item['started_at'] ?? 'N/A'}'),
                   if (item['summary_preview'] != null) ...[
                     const SizedBox(height: 4),
                     Row(
@@ -136,7 +153,7 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
               isThreeLine: true,
               trailing: isDelayed
                   ? const Chip(
-                      label: Text('Delayed', style: TextStyle(color: Colors.white, fontSize: 11)),
+                      label: Text('Trễ hạn', style: TextStyle(color: Colors.white, fontSize: 11)),
                       backgroundColor: Colors.red,
                     )
                   : null,

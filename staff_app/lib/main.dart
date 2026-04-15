@@ -69,6 +69,9 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
   late final SearchApiClient searchApiClient;
   List<DossierListItemDto> _draftDossiers = [];
   final _storage = const FlutterSecureStorage();
+  String? _departmentId;
+  int _staffClearanceLevel = 0;
+  String _staffName = '';
 
   @override
   void initState() {
@@ -85,6 +88,14 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
     if (token != null) {
       apiClient.setToken(token);
     }
+    final deptId = await _storage.read(key: 'staff_department_id');
+    final clearance = await _storage.read(key: 'staff_clearance_level');
+    final name = await _storage.read(key: 'staff_full_name');
+    setState(() {
+      _departmentId = deptId;
+      _staffClearanceLevel = int.tryParse(clearance ?? '') ?? 0;
+      _staffName = name ?? '';
+    });
     _loadDraftDossiers();
   }
 
@@ -180,6 +191,16 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
                                   color: Colors.white70,
                                 ),
                               ),
+                              if (_staffName.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Xin chào, $_staffName',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -241,14 +262,23 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
                     label: 'Hàng đợi',
                     description: 'Hồ sơ được phân công',
                     color: const Color(0xFFE65100),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => DepartmentQueueScreen(
-                          departmentId: 'default',
-                          apiClient: apiClient,
+                    onTap: () {
+                      if (_departmentId == null || _departmentId!.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Không xác định được phòng ban. Vui lòng đăng nhập lại.')),
+                        );
+                        return;
+                      }
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => DepartmentQueueScreen(
+                            departmentId: _departmentId!,
+                            apiClient: apiClient,
+                            staffClearanceLevel: _staffClearanceLevel,
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                   _FeatureTile(
                     icon: Icons.search_rounded,

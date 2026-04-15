@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app_links/app_links.dart';
+import '../../main.dart' show kApiBaseUrl;
 
 class VneidAuthScreen extends StatefulWidget {
   const VneidAuthScreen({super.key});
@@ -17,10 +18,7 @@ class _VneidAuthScreenState extends State<VneidAuthScreen> {
   bool _loading = false;
   String? _error;
 
-  static const _apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8000',
-  );
+  static const _apiBaseUrl = kApiBaseUrl;
 
   static const _callbackUri = 'citizen-app://auth/callback';
 

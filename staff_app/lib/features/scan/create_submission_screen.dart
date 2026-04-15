@@ -15,7 +15,7 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
   int? _securityClassification;
   String _priority = 'normal';
 
-  final _classificationLabels = ['Unclassified', 'Confidential', 'Secret', 'Top Secret'];
+  final _classificationLabels = ['Công khai', 'Mật', 'Tối mật', 'Tuyệt mật'];
 
   bool get _classificationExceedsClearance =>
       _securityClassification != null && _securityClassification! > widget.staffClearanceLevel;
@@ -23,13 +23,13 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
   void _submit() {
     if (_cccdController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter citizen CCCD number')),
+        const SnackBar(content: Text('Vui lòng nhập số CCCD')),
       );
       return;
     }
     if (_securityClassification == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a security classification')),
+        const SnackBar(content: Text('Vui lòng chọn mức độ bảo mật')),
       );
       return;
     }
@@ -37,21 +37,21 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Clearance Warning'),
+          title: const Text('Cảnh báo quyền truy cập'),
           content: Text(
-            'You are assigning classification "${_classificationLabels[_securityClassification!]}" '
-            'which exceeds your clearance level '
+            'Mức bảo mật "${_classificationLabels[_securityClassification!]}" '
+            'vượt quá quyền hạn của bạn '
             '"${_classificationLabels[widget.staffClearanceLevel]}". '
-            'You will not be able to access this document after submission.',
+            'Bạn sẽ không thể truy cập tài liệu này sau khi tải lên.',
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Huỷ')),
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
                 _doSubmit();
               },
-              child: const Text('Proceed Anyway'),
+              child: const Text('Tiếp tục'),
             ),
           ],
         ),
@@ -71,8 +71,9 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('New Submission')),
+      appBar: AppBar(title: const Text('Quét nhanh')),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -80,22 +81,26 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
           children: [
             TextField(
               controller: _cccdController,
-              decoration: const InputDecoration(
-                labelText: 'Citizen CCCD Number',
-                border: OutlineInputBorder(),
-                hintText: 'Enter 12-digit CCCD number',
+              decoration: InputDecoration(
+                labelText: 'Số CCCD công dân',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                hintText: 'Nhập số CCCD 12 chữ số',
+                prefixIcon: const Icon(Icons.credit_card),
+                filled: true,
+                fillColor: cs.surfaceContainerHighest.withAlpha(80),
               ),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 24),
-            const Text('Security Classification *', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('Mức độ bảo mật *', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(
               value: _securityClassification,
               decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                hintText: 'Select classification',
-                errorText: _securityClassification == null ? null : null,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                hintText: 'Chọn mức bảo mật',
+                filled: true,
+                fillColor: cs.surfaceContainerHighest.withAlpha(80),
               ),
               items: List.generate(4, (i) => DropdownMenuItem(value: i, child: Text(_classificationLabels[i]))),
               onChanged: (v) => setState(() => _securityClassification = v),
@@ -109,7 +114,7 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'This classification exceeds your clearance level '
+                        'Mức bảo mật này vượt quá quyền hạn của bạn '
                         '(${_classificationLabels[widget.staffClearanceLevel]})',
                         style: const TextStyle(color: Colors.orange, fontSize: 13),
                       ),
@@ -118,12 +123,12 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
                 ),
               ),
             const SizedBox(height: 24),
-            const Text('Priority', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('Mức ưu tiên', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
             const SizedBox(height: 8),
             SegmentedButton<String>(
               segments: const [
-                ButtonSegment(value: 'normal', label: Text('Normal')),
-                ButtonSegment(value: 'urgent', label: Text('Urgent')),
+                ButtonSegment(value: 'normal', label: Text('Bình thường')),
+                ButtonSegment(value: 'urgent', label: Text('Khẩn cấp')),
               ],
               selected: {_priority},
               onSelectionChanged: (v) => setState(() => _priority = v.first),
@@ -131,9 +136,14 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
             const Spacer(),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              height: 50,
+              child: FilledButton.icon(
                 onPressed: _submit,
-                child: const Text('Create & Start Scanning'),
+                icon: const Icon(Icons.document_scanner_rounded),
+                label: const Text('Tạo & Bắt đầu quét', style: TextStyle(fontSize: 16)),
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
           ],

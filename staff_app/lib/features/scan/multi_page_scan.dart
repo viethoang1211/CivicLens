@@ -45,41 +45,76 @@ class _MultiPageScanState extends State<MultiPageScan> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Pages (${_pages.length})'),
-        actions: [
+        title: Text('Trang đã chụp (${_pages.length})'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: _pages.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.document_scanner_outlined, size: 64, color: Colors.grey.shade300),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Chưa có trang nào.\nNhấn nút camera để chụp.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey, fontSize: 15),
+                        ),
+                      ],
+                    ),
+                  )
+                : ReorderableListView.builder(
+                    itemCount: _pages.length,
+                    onReorder: _reorderPages,
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        key: ValueKey(index),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 50,
+                            height: 50,
+                            child: Image.file(_pages[index], fit: BoxFit.cover),
+                          ),
+                        ),
+                        title: Text('Trang ${index + 1}'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline, color: Colors.red),
+                          onPressed: () => _removePage(index),
+                        ),
+                      );
+                    },
+                  ),
+          ),
           if (_pages.isNotEmpty)
-            TextButton(
-              onPressed: _finalize,
-              child: const Text('Done', style: TextStyle(color: Colors.white)),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: _finalize,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: Text(
+                      'Hoàn tất (${_pages.length} trang)',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ),
             ),
         ],
       ),
-      body: _pages.isEmpty
-          ? const Center(child: Text('No pages scanned yet. Tap + to add.'))
-          : ReorderableListView.builder(
-              itemCount: _pages.length,
-              onReorder: _reorderPages,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  key: ValueKey(index),
-                  leading: SizedBox(
-                    width: 50,
-                    height: 50,
-                    child: Image.file(_pages[index], fit: BoxFit.cover),
-                  ),
-                  title: Text('Page ${index + 1}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () => _removePage(index),
-                  ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _addPage,
-        child: const Icon(Icons.add_a_photo),
+        icon: const Icon(Icons.add_a_photo),
+        label: const Text('Chụp thêm'),
       ),
     );
   }

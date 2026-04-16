@@ -248,12 +248,26 @@ def run_classification(self, submission_id: str):
             select(DocumentType).where(DocumentType.is_active.is_(True))
         ).scalars().all()
 
+        # ── Exclude identity documents when scanning multiple pages ────
+        # CCCD/Passport are used solely for citizen identification.
+        # When a submission has >1 page (e.g. CCCD + birth registration form),
+        # the main document to classify is NOT the identity document.
+        ID_DOC_CODES = {"ID_CCCD", "PASSPORT_VN"}
+        if len(pages) > 1:
+            classifiable_types = [dt for dt in doc_types if dt.code not in ID_DOC_CODES]
+            logger.info(
+                "Multi-page submission %s (%d pages): excluding ID docs from classification candidates",
+                submission_id, len(pages)
+            )
+        else:
+            classifiable_types = doc_types
+
         # ── Path 1: Text-based classification ────────────────────
         text_result = None
         try:
             type_dicts = [
                 {"code": dt.code, "name": dt.name, "description": dt.description or ""}
-                for dt in doc_types
+                for dt in classifiable_types
             ]
             raw_text = ai_client.classify_document(combined_text, type_dicts)
             text_result = _parse_ai_json(raw_text)
@@ -265,8 +279,10 @@ def run_classification(self, submission_id: str):
             logger.exception("Text classification failed for %s", submission_id)
 
         # ── Path 2: Vision-based classification ──────────────────
+        # For multi-page: classify from the LAST page (most likely the main document,
+        # not the CCCD which is typically scanned first)
         vision_result = None
-        first_page = pages[0] if pages else None
+        first_page = pages[-1] if len(pages) > 1 else (pages[0] if pages else None)
         if first_page and first_page.image_oss_key:
             try:
                 from src.services.oss_client import oss_client
@@ -279,7 +295,7 @@ def run_classification(self, submission_id: str):
                         "name": dt.name,
                         "classification_prompt": dt.classification_prompt or dt.description or "",
                     }
-                    for dt in doc_types
+                    for dt in classifiable_types
                 ]
                 raw_vision = ai_client.classify_document_visual(image_data, vision_type_dicts)
                 vision_result = _parse_ai_json(raw_vision)
@@ -358,6 +374,19 @@ def run_classification(self, submission_id: str):
             submission.template_data = filled if isinstance(filled, dict) else {}
             submission.template_data.update(classification_meta)
 
+            # For multi-page scans: extract CCCD number from combined OCR text so
+            # citizen auto-linking still works even though ID doc was excluded from
+            # classification candidates.
+            if len(pages) > 1 and "so_cccd" not in submission.template_data:
+                import re as _re
+                cccd_match = _re.search(r"\b(\d{12})\b", combined_text)
+                if cccd_match:
+                    submission.template_data["so_cccd"] = cccd_match.group(1)
+                    logger.info(
+                        "Multi-page scan %s: extracted CCCD number %s from OCR for citizen linking",
+                        submission_id, cccd_match.group(1)
+                    )
+
         # Auto-link citizen if CCCD number found in template data
         if submission.citizen_id is None:
             _try_auto_link_citizen(submission, db)
@@ -373,6 +402,10 @@ def run_classification(self, submission_id: str):
 
         doc_code = matched_type.code if matched_type else None
         is_id_document = doc_code in ("ID_CCCD", "PASSPORT_VN")
+        # In a multi-page scan the ID doc was used for citizen data, not as main classification.
+        # Treat it as "identified" even though the classified type is not an ID doc.
+        if len(pages) > 1:
+            is_id_document = False  # Never flag multi-page result as "the ID doc itself"
 
         if submission.template_data is None:
             submission.template_data = {}

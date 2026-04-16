@@ -9,6 +9,7 @@ from src.dependencies import get_db
 from src.models.document_type import DocumentType
 from src.security.abac import check_submission_clearance
 from src.security.auth import StaffIdentity, get_current_staff
+from src.services.routing_service import create_workflow_for_submission
 
 router = APIRouter()
 
@@ -124,4 +125,17 @@ async def confirm_classification(
     submission.status = "classified"
 
     await db.commit()
-    return {"submission_id": str(submission_id), "status": "classified", "document_type_name": doc_type.name}
+
+    # Auto-route to departments based on the confirmed document type
+    routing_result = None
+    try:
+        routing_result = await create_workflow_for_submission(db, submission)
+    except ValueError:
+        pass  # No staff with sufficient clearance; leave as classified
+
+    return {
+        "submission_id": str(submission_id),
+        "status": submission.status,
+        "document_type_name": doc_type.name,
+        "routing": routing_result,
+    }

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.dependencies import get_db
 from src.models.staff_member import StaffMember
@@ -18,7 +19,9 @@ class LoginRequest(BaseModel):
 @router.post("/login")
 async def staff_login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(StaffMember).where(StaffMember.employee_id == body.employee_id, StaffMember.is_active.is_(True))
+        select(StaffMember)
+        .where(StaffMember.employee_id == body.employee_id, StaffMember.is_active.is_(True))
+        .options(selectinload(StaffMember.department))
     )
     staff = result.scalar_one_or_none()
 
@@ -42,6 +45,7 @@ async def staff_login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
             "id": str(staff.id),
             "full_name": staff.full_name,
             "department_id": str(staff.department_id),
+            "department_name": staff.department.name if staff.department else None,
             "clearance_level": staff.clearance_level,
             "role": staff.role,
         },

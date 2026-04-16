@@ -40,6 +40,7 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
       final staff = data['staff'] as Map<String, dynamic>?;
       if (staff != null) {
         await _storage.write(key: 'staff_department_id', value: staff['department_id']?.toString() ?? '');
+        await _storage.write(key: 'staff_department_name', value: staff['department_name']?.toString() ?? '');
         await _storage.write(key: 'staff_clearance_level', value: (staff['clearance_level'] ?? 0).toString());
         await _storage.write(key: 'staff_full_name', value: staff['full_name']?.toString() ?? '');
         await _storage.write(key: 'staff_role', value: staff['role']?.toString() ?? '');

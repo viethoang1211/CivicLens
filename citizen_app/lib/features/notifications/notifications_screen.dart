@@ -30,7 +30,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       final resp = await _citizenApi.listNotifications();
-      final items = (resp['notifications'] as List)
+      final rawItems = resp['items'];
+      final items = (rawItems is List ? rawItems : <dynamic>[])
           .map((e) => NotificationDto.fromJson(e as Map<String, dynamic>))
           .toList();
       setState(() { _notifications = items; _loading = false; });

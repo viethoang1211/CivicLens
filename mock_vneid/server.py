@@ -198,7 +198,7 @@ async def authorize_submit(
             <div class="code-label">Mã xác thực (copy và dán vào app):</div>
             <div class="code" id="authCode">{code}</div>
         </div>
-        <button onclick="navigator.clipboard.writeText(document.getElementById('authCode').textContent).then(()=>this.textContent='Đã copy ✓')">
+        <button onclick="var t=document.getElementById('authCode').textContent;if(navigator.clipboard&&window.isSecureContext){{navigator.clipboard.writeText(t).then(()=>this.textContent='Đã copy ✓')}}else{{var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.left='-9999px';document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);this.textContent='Đã copy ✓'}}">
             📋 Copy mã
         </button>
         <div class="hint">Quay lại ứng dụng và dán mã này để hoàn tất đăng nhập</div>

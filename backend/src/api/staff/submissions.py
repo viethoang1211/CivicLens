@@ -15,6 +15,7 @@ from src.models.scanned_page import ScannedPage
 from src.models.submission import Submission
 from src.security.abac import check_submission_clearance
 from src.security.auth import StaffIdentity, get_current_staff
+from src.services.dossier_service import generate_reference_number, create_dossier_workflow
 from src.services.oss_client import oss_client
 from src.services.quality_service import assess_image_quality
 from src.workers.ocr_worker import run_ocr_pipeline
@@ -141,7 +142,7 @@ async def finalize_scan(
     )
     quick_scan_type = case_type_result.scalar_one_or_none()
     if quick_scan_type and submission.citizen_id:
-        ref_number = _generate_reference_number()
+        ref_number = await generate_reference_number(db, datetime.now(UTC).date())
         dossier = Dossier(
             citizen_id=submission.citizen_id,
             submitted_by_staff_id=staff.staff_id,
@@ -154,6 +155,12 @@ async def finalize_scan(
         await db.flush()
         dossier_id = dossier.id
         submission.dossier_id = dossier.id
+
+        # Create workflow steps and start routing
+        try:
+            await create_dossier_workflow(dossier, db)
+        except ValueError:
+            pass  # No staff with sufficient clearance; dossier stays submitted
 
     await db.commit()
 
@@ -169,12 +176,50 @@ async def finalize_scan(
     return resp
 
 
-def _generate_reference_number() -> str:
-    """Generate reference number in format HS-YYYYMMDD-NNNNN."""
-    now = datetime.now(UTC)
-    date_part = now.strftime("%Y%m%d")
-    random_part = uuid.uuid4().hex[:5].upper()
-    return f"HS-{date_part}-{random_part}"
+@router.get("/pending-review")
+async def list_pending_review(
+    staff: StaffIdentity = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """List submissions waiting for staff classification review."""
+    result = await db.execute(
+        select(Submission)
+        .where(Submission.status == "pending_classification")
+        .order_by(Submission.submitted_at.desc())
+        .limit(50)
+    )
+    submissions = result.scalars().all()
+    return {
+        "items": [
+            {
+                "id": str(s.id),
+                "status": s.status,
+                "classification_confidence": float(s.classification_confidence) if s.classification_confidence else None,
+                "classification_method": s.classification_method,
+                "document_type_id": str(s.document_type_id) if s.document_type_id else None,
+                "created_at": s.created_at.isoformat(),
+            }
+            for s in submissions
+        ]
+    }
+
+
+@router.get("/{submission_id}/status")
+async def get_submission_status(
+    submission_id: uuid.UUID,
+    staff: StaffIdentity = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Poll submission processing status (OCR → classification → ready)."""
+    submission = await check_submission_clearance(submission_id, staff, db, action="view")
+    return {
+        "id": str(submission.id),
+        "status": submission.status,
+        "document_type_id": str(submission.document_type_id) if submission.document_type_id else None,
+        "classification_confidence": float(submission.classification_confidence) if submission.classification_confidence else None,
+        "classification_method": submission.classification_method,
+        "dossier_id": str(submission.dossier_id) if submission.dossier_id else None,
+    }
 
 
 @router.get("/{submission_id}/ocr-results")

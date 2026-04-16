@@ -177,14 +177,113 @@ Giấy tờ cần chuẩn bị:
 
 ---
 
-## Demo tính năng bổ sung (nếu còn thời gian)
+## Kịch bản D: Demo Quét nhanh (Quick Scan) — 5 phút
 
-### Quét nhanh (Quick Scan)
+> Demo luồng quét nhanh: NV chụp tài liệu → AI tự động OCR + phân loại → NV xác nhận → hồ sơ được route.
 
-1. NV001 → **"Quét nhanh"** → chụp 1 tài liệu bất kỳ
-2. AI tự động OCR + phân loại → hiển thị kết quả
-3. Nhấn "Hoàn tất" → hồ sơ được tạo tự động
-4. Công dân mở app → thấy hồ sơ quét nhanh
+### Chuẩn bị
+
+- [ ] In file `02_to_khai_khai_sinh.pdf` từ `docs/sample-docs/` ra giấy A4
+- [ ] Chuẩn bị ảnh chụp CCCD thật của Giàng Thị Pà (in A4 hoặc hiển thị trên màn hình)
+- [ ] Cài Staff App APK mới nhất trên điện thoại NV001
+
+### Giấy tờ mẫu có sẵn
+
+| Giấy tờ | Nguồn | Mã hệ thống |
+|---------|-------|-------------|
+| Căn cước công dân (CCCD) | **Ảnh chụp CCCD thật** của Giàng Thị Pà | `ID_CCCD` |
+| Tờ khai đăng ký khai sinh | `02_to_khai_khai_sinh.pdf` (in A4) | `BIRTH_REG_FORM` |
+| Tờ khai xác nhận tình trạng hôn nhân | `01_to_khai_hon_nhan.pdf` (in A4) | `MARITAL_STATUS_FORM` |
+| Giấy đề nghị đăng ký hộ kinh doanh | `03_dang_ky_ho_kinh_doanh.pdf` (in A4) | `BIZ_REG_FORM` |
+| Đơn khiếu nại | `04_don_khieu_nai.pdf` (in A4) | `COMPLAINT` |
+| Giấy đề nghị đăng ký doanh nghiệp | `05_dang_ky_doanh_nghiep.pdf` (in A4) | `COMPANY_REG_FORM` |
+
+> 📌 **CCCD dùng ảnh chụp thật** (không cần PDF). AI model `qwen-vl-ocr` xử lý trực tiếp ảnh chụp. Các tài liệu khác in từ PDF mẫu trong `docs/sample-docs/`.
+
+### Kịch bản đề xuất: Đăng ký khai sinh (2 giấy tờ)
+
+> Quét 2 giấy tờ liên quan: **CCCD của mẹ** (ảnh chụp thật) + **Tờ khai đăng ký khai sinh** (PDF in A4).
+> AI sẽ nhận diện từng loại giấy tờ và trích xuất thông tin.
+
+**Chuẩn bị:**
+- Ảnh chụp CCCD thật của Giàng Thị Pà (in ra A4 hoặc hiển thị trên màn hình)
+- In file `02_to_khai_khai_sinh.pdf` ra A4 (người yêu cầu & mẹ = Giàng Thị Pà, CCCD 011167000556)
+
+### Bước 1: NV Tiếp nhận quét CCCD (Staff App — NV001)
+
+1. Mở **Staff App** → Đăng nhập NV001
+2. Nhấn **"Quét nhanh"** trên trang chủ
+3. Chọn mức bảo mật: **"Công khai"**
+4. Nhấn **"Tạo & Bắt đầu quét"**
+5. **Camera mở** → hướng camera vào **ảnh CCCD Giàng Thị Pà**
+6. Chụp ảnh → nhấn **"Hoàn tất"**
+
+### Bước 2: Theo dõi AI xử lý CCCD
+
+1. ✅ Màn hình **"Trạng thái xử lý"** hiện ra:
+   - 🔄 **"Đang trích xuất văn bản (OCR)..."** — thanh tiến trình chạy
+   - App tự động poll mỗi 3 giây
+2. Sau 10–30 giây, chuyển sang:
+   - 🔄 **"Đang phân loại tài liệu..."**
+3. Khi AI hoàn tất:
+   - ✅ Hiện **Kết quả AI**: "Căn cước công dân / CMND" — Độ tin cậy: ~95%
+   - Hiện tóm tắt AI: trích xuất **số CCCD 011167000556**, họ tên **GIÀNG THỊ PÀ**, ngày sinh **01/01/1967**
+
+**Giải thích**: _"AI sử dụng model Qwen-VL-OCR để đọc trực tiếp ảnh chụp CCCD thật — không cần scan hay PDF. Thông tin quan trọng được trích xuất tự động."_
+
+### Bước 3: NV xác nhận phân loại CCCD
+
+- **Nếu AI đúng** (Căn cước công dân): Nhấn **"Xác nhận phân loại"**
+- **Nếu AI sai**: Chọn loại đúng trong **"Gợi ý khác"**
+- ✅ Hồ sơ CCCD chuyển trạng thái "classified"
+
+### Bước 4: Quét tờ khai khai sinh (lặp lại Quick Scan)
+
+1. Quay về trang chủ → nhấn **"Quét nhanh"** lần nữa
+2. Chụp **Tờ khai đăng ký khai sinh** (bản in A4)
+3. Nhấn **"Hoàn tất"** → theo dõi AI xử lý
+4. AI nhận diện: **"Tờ khai đăng ký khai sinh"** — Độ tin cậy: ~90%
+5. Tóm tắt AI: trích xuất tên trẻ **SÙNG THỊ MỶ**, mẹ **GIÀNG THỊ PÀ**, ngày sinh **10/03/2026**
+6. Nhấn **"Xác nhận phân loại"**
+
+**Giải thích**: _"Cùng một luồng Quick Scan cho mọi loại giấy tờ. AI tự phân biệt CCCD với tờ khai, trích xuất đúng thông tin theo từng loại."_
+
+### Bước 5: Kiểm tra kết quả
+
+1. Mỗi lần quét tạo 1 hồ sơ riêng với mã tham chiếu (VD: `HS-20260416-00003`)
+2. Hồ sơ được route đến phòng Tiếp nhận (RECEPTION)
+3. Nếu CCCD công dân trùng khớp → tự động liên kết với tài khoản công dân
+
+### Lưu ý khi demo Quick Scan
+
+- **Chất lượng ảnh quan trọng**: Chụp thẳng, đủ sáng, không bị mờ. Ảnh lệch/tối sẽ làm OCR sai
+- **In PDF trên A4**: Cho kết quả tốt nhất. Chụp từ màn hình laptop cũng được nhưng dễ bị phản chiếu
+- **Thời gian xử lý**: Thường 10–30 giây. Nếu server bận có thể lâu hơn
+- **Loại tài liệu hỗ trợ**: Hệ thống hỗ trợ 15 loại (xem bảng dưới)
+
+### Danh sách 15 loại tài liệu AI hỗ trợ
+
+| # | Loại tài liệu | Mã | Phòng ban route |
+|---|---------------|-----|----------------|
+| 1 | Căn cước công dân / CMND | `ID_CCCD` | Tiếp nhận |
+| 2 | Hộ chiếu Việt Nam | `PASSPORT_VN` | Tiếp nhận |
+| 3 | Tờ khai đăng ký khai sinh | `BIRTH_REG_FORM` | Tiếp nhận → Tư pháp |
+| 4 | Giấy chứng sinh | `BIRTH_CERTIFICATE_MEDICAL` | Tiếp nhận → Tư pháp |
+| 5 | Giấy chứng nhận kết hôn | `MARRIAGE_CERT` | Tiếp nhận → Tư pháp |
+| 6 | Tờ khai xác nhận tình trạng hôn nhân | `MARITAL_STATUS_FORM` | Tiếp nhận → Tư pháp |
+| 7 | Tờ khai thay đổi cư trú (CT01) | `RESIDENCE_FORM_CT01` | Tiếp nhận → Công an |
+| 8 | Giấy tờ chứng minh chỗ ở hợp pháp | `RESIDENCE_PROOF` | Tiếp nhận → Hành chính |
+| 9 | Giấy đề nghị đăng ký hộ kinh doanh | `BIZ_REG_FORM` | Tiếp nhận → Tài chính |
+| 10 | Giấy đề nghị đăng ký doanh nghiệp | `COMPANY_REG_FORM` | Tiếp nhận → Tài chính → Tư pháp |
+| 11 | Điều lệ công ty | `COMPANY_CHARTER` | Tiếp nhận → Tư pháp |
+| 12 | Danh sách thành viên / cổ đông | `MEMBER_LIST` | Tiếp nhận → Tài chính |
+| 13 | Đơn khiếu nại / tố cáo | `COMPLAINT` | Tiếp nhận → Hành chính → Lãnh đạo |
+| 14 | Báo cáo mật | `CLASSIFIED_RPT` | Tiếp nhận → Nội vụ → Lãnh đạo |
+| 15 | Giấy xác nhận thông tin cư trú | `RESIDENCE_CONFIRM` | Tiếp nhận |
+
+---
+
+## Demo tính năng bổ sung khác (nếu còn thời gian)
 
 ### Tìm kiếm (Search)
 

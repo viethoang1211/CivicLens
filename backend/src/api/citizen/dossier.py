@@ -18,6 +18,7 @@ _STATUS_LABELS_VI = {
     "ready": "Sẵn sàng nộp",
     "submitted": "Đã tiếp nhận",
     "in_progress": "Đang xử lý",
+    "pending_routing": "Chờ phân tuyến",
     "completed": "Hoàn thành",
     "rejected": "Bị trả lại",
 }
@@ -142,7 +143,10 @@ async def lookup_dossier(
     result = await db.execute(
         select(Dossier)
         .where(Dossier.reference_number == reference_number)
-        .options(selectinload(Dossier.case_type), selectinload(Dossier.workflow_steps))
+        .options(
+            selectinload(Dossier.case_type),
+            selectinload(Dossier.workflow_steps).selectinload(WorkflowStep.department),
+        )
     )
     dossier = result.scalar_one_or_none()
     if dossier is None:

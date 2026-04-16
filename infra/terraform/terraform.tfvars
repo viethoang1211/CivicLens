@@ -33,7 +33,7 @@ oss_bucket_name = "public-sector-docs"
 
 # Application
 jwt_secret_key    = "change-me-to-a-long-random-string-in-production"
-dashscope_api_key = "sk-2a35e5b9868242b3b17f9b61ab751d79"
+dashscope_api_key = "sk-305573b4c89a4a47bdb360c98ed7ae29"
 
 # VNeID Mock OAuth (dev/demo only — remove when using real VNeID)
 vneid_jwt_secret    = "mock-vneid-secret-key"

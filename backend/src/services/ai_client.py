@@ -7,6 +7,8 @@ from dashscope import MultiModalConversation
 from src.config import settings
 
 dashscope.api_key = settings.dashscope_api_key
+if settings.dashscope_api_base:
+    dashscope.base_http_api_url = settings.dashscope_api_base
 
 
 class AIClient:

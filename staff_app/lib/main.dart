@@ -12,6 +12,7 @@ import 'features/review/department_queue_screen.dart';
 import 'features/review/document_review_screen.dart';
 import 'features/scan/create_submission_screen.dart';
 import 'features/scan/multi_page_scan.dart';
+import 'features/scan/quick_scan_status_screen.dart';
 import 'features/search/search_screen.dart';
 
 /// Single source of truth for backend URL across entire app.
@@ -511,14 +512,20 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
       }
 
       // Step 5: Finalize scan (triggers OCR)
-      await submissionsApi.finalizeScan(submissionId);
+      final result = await submissionsApi.finalizeScan(submissionId);
 
       if (context.mounted) {
         Navigator.of(context).pop(); // dismiss progress dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đã tải lên ${pages.length} trang. OCR đang xử lý...'),
-            backgroundColor: Colors.green,
+
+        // Step 6: Navigate to processing status screen
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => QuickScanStatusScreen(
+              submissionId: submissionId,
+              dossierId: result['dossier_id'] as String?,
+              submissionsApi: submissionsApi,
+              classificationApi: StaffClassificationApi(apiClient),
+            ),
           ),
         );
       }

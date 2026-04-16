@@ -18,12 +18,12 @@ class _DossierLookupScreenState extends State<DossierLookupScreen> {
   bool _loading = false;
   String? _error;
 
-  static final _refPattern = RegExp(r'^HS-\d{8}-\d{5}$');
+  static final _refPattern = RegExp(r'^HS-\d{8}-[A-Za-z0-9]{5}$');
 
   Future<void> _lookup() async {
     final ref = _referenceController.text.trim().toUpperCase();
     if (!_refPattern.hasMatch(ref)) {
-      setState(() => _error = 'Mã tham chiếu phải có dạng HS-YYYYMMDD-NNNNN');
+      setState(() => _error = 'Mã tham chiếu phải có dạng HS-YYYYMMDD-XXXXX');
       return;
     }
 

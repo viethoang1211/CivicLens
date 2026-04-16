@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     # Alibaba Cloud Model Studio (dashscope)
     dashscope_api_key: str = ""
+    dashscope_api_base: str = "https://dashscope-intl.aliyuncs.com/api/v1"  # intl for Singapore region
 
     # Celery
     celery_broker_url: str = "redis://localhost:6379/0"

@@ -71,6 +71,7 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
   List<DossierListItemDto> _draftDossiers = [];
   final _storage = const FlutterSecureStorage();
   String? _departmentId;
+  String _departmentName = '';
   int _staffClearanceLevel = 0;
   String _staffName = '';
 
@@ -90,10 +91,12 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
       apiClient.setToken(token);
     }
     final deptId = await _storage.read(key: 'staff_department_id');
+    final deptName = await _storage.read(key: 'staff_department_name');
     final clearance = await _storage.read(key: 'staff_clearance_level');
     final name = await _storage.read(key: 'staff_full_name');
     setState(() {
       _departmentId = deptId;
+      _departmentName = deptName ?? '';
       _staffClearanceLevel = int.tryParse(clearance ?? '') ?? 0;
       _staffName = name ?? '';
     });
@@ -199,6 +202,16 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                              if (_departmentName.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  _departmentName,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.white70,
+                                    fontSize: 12,
                                   ),
                                 ),
                               ],

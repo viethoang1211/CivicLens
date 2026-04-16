@@ -39,9 +39,9 @@ class _CaptureStepWidgetState extends State<CaptureStepWidget> {
   List<Map<String, dynamic>> get _slots =>
       (widget.group['slots'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
 
-  Future<void> _captureForSlot(Map<String, dynamic> slot) async {
+  Future<void> _captureForSlot(Map<String, dynamic> slot, {ImageSource source = ImageSource.camera}) async {
     final photo = await _picker.pickImage(
-      source: ImageSource.camera,
+      source: source,
       imageQuality: 90,
       preferredCameraDevice: CameraDevice.rear,
     );
@@ -68,10 +68,44 @@ class _CaptureStepWidgetState extends State<CaptureStepWidget> {
 
   void _onCaptureTap() {
     if (_slots.length == 1) {
-      _captureForSlot(_slots.first);
+      _showSourcePickerForSlot(_slots.first);
     } else {
       _showSlotSelector();
     }
+  }
+
+  void _showSourcePickerForSlot(Map<String, dynamic> slot) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Chọn nguồn ảnh', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Chụp ảnh'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _captureForSlot(slot, source: ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Chọn từ thư viện'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _captureForSlot(slot, source: ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showSlotSelector() {
@@ -105,7 +139,7 @@ class _CaptureStepWidgetState extends State<CaptureStepWidget> {
                       : null,
                   onTap: () {
                     Navigator.pop(ctx);
-                    _captureForSlot(slot);
+                    _showSourcePickerForSlot(slot);
                   },
                 )),
             const SizedBox(height: 8),

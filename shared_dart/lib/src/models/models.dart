@@ -137,6 +137,7 @@ class WorkflowStepDto {
 class NotificationDto {
   final String id;
   final String? submissionId;
+  final String? dossierId;
   final String type;
   final String title;
   final String body;
@@ -147,6 +148,7 @@ class NotificationDto {
   NotificationDto({
     required this.id,
     this.submissionId,
+    this.dossierId,
     required this.type,
     required this.title,
     required this.body,
@@ -159,6 +161,7 @@ class NotificationDto {
     return NotificationDto(
       id: json['id'],
       submissionId: json['submission_id'],
+      dossierId: json['dossier_id'],
       type: json['type'],
       title: json['title'],
       body: json['body'],
@@ -171,6 +174,7 @@ class NotificationDto {
   NotificationDto copyWith({
     String? id,
     String? submissionId,
+    String? dossierId,
     String? type,
     String? title,
     String? body,
@@ -181,6 +185,7 @@ class NotificationDto {
     return NotificationDto(
       id: id ?? this.id,
       submissionId: submissionId ?? this.submissionId,
+      dossierId: dossierId ?? this.dossierId,
       type: type ?? this.type,
       title: title ?? this.title,
       body: body ?? this.body,

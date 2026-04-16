@@ -41,6 +41,7 @@ async def list_notifications(
             {
                 "id": str(n.id),
                 "submission_id": str(n.submission_id) if n.submission_id else None,
+                "dossier_id": str(n.dossier_id) if n.dossier_id else None,
                 "type": n.type,
                 "title": n.title,
                 "body": n.body,

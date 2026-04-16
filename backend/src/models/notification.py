@@ -15,6 +15,9 @@ class Notification(Base, UUIDPrimaryKey):
     submission_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("submission.id"), nullable=True
     )
+    dossier_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("dossier.id"), nullable=True
+    )
     type: Mapped[str] = mapped_column(String(30), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)

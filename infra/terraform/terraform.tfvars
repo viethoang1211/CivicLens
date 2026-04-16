@@ -25,7 +25,7 @@ redis_instance_class = "redis.master.micro.default"
 redis_password       = "ChangeMe_Redis_2026!"
 
 # ECS
-ecs_instance_type = "ecs.t5-lc1m1.small"
+ecs_instance_type = "ecs.t5-lc1m2.large"
 ecs_password      = "ChangeMe_Ecs_2026!"
 
 # OSS

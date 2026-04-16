@@ -4,7 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app_links/app_links.dart';
-import '../../main.dart' show kApiBaseUrl;
+import '../../main.dart' show kApiBaseUrl, apiClient, CitizenHomeScreen;
 
 class VneidAuthScreen extends StatefulWidget {
   const VneidAuthScreen({super.key});
@@ -121,8 +121,19 @@ class _VneidAuthScreenState extends State<VneidAuthScreen> {
       await _storage.write(key: 'refresh_token', value: data['refresh_token']);
       await _storage.write(key: 'citizen_name', value: data['citizen']['full_name']);
 
+      // Set token on global ApiClient
+      apiClient.setToken(data['access_token']);
+
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/submissions');
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => CitizenHomeScreen(
+              apiClient: apiClient,
+              citizenName: data['citizen']['full_name'] ?? 'Công dân',
+            ),
+          ),
+          (_) => false,
+        );
       }
     } on DioException catch (e) {
       if (mounted) {

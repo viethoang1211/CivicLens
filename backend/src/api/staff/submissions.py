@@ -8,7 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import get_db
+from src.models.case_type import CaseType
 from src.models.citizen import Citizen
+from src.models.dossier import Dossier
 from src.models.scanned_page import ScannedPage
 from src.models.submission import Submission
 from src.security.abac import check_submission_clearance
@@ -129,15 +131,48 @@ async def finalize_scan(
         raise HTTPException(status_code=409, detail=f"Cannot finalize scan in status '{submission.status}'")
 
     submission.status = "ocr_processing"
+
+    # Auto-create a Dossier so citizen can track this scan
+    dossier_id = None
+    case_type_result = await db.execute(
+        select(CaseType).where(CaseType.code == "QUICK_SCAN")
+    )
+    quick_scan_type = case_type_result.scalar_one_or_none()
+    if quick_scan_type and submission.citizen_id:
+        ref_number = _generate_reference_number()
+        dossier = Dossier(
+            citizen_id=submission.citizen_id,
+            submitted_by_staff_id=staff.staff_member_id,
+            case_type_id=quick_scan_type.id,
+            status="submitted",
+            reference_number=ref_number,
+            submitted_at=datetime.now(UTC),
+        )
+        db.add(dossier)
+        await db.flush()
+        dossier_id = dossier.id
+        submission.dossier_id = dossier.id
+
     await db.commit()
 
     run_ocr_pipeline.delay(str(submission_id))
 
-    return {
+    resp = {
         "id": str(submission.id),
         "status": "ocr_processing",
         "estimated_completion_seconds": 15,
     }
+    if dossier_id:
+        resp["dossier_id"] = str(dossier_id)
+    return resp
+
+
+def _generate_reference_number() -> str:
+    """Generate reference number in format HS-YYYYMMDD-NNNNN."""
+    now = datetime.now(UTC)
+    date_part = now.strftime("%Y%m%d")
+    random_part = uuid.uuid4().hex[:5].upper()
+    return f"HS-{date_part}-{random_part}"
 
 
 @router.get("/{submission_id}/ocr-results")

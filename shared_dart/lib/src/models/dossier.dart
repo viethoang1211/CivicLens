@@ -106,7 +106,7 @@ class DossierCurrentStepDto {
 class DossierDto {
   final String id;
   final String? referenceNumber;
-  final String citizenId;
+  final String? citizenId;
   final String? citizenName;
   final String caseTypeId;
   final String? caseTypeName;
@@ -128,7 +128,7 @@ class DossierDto {
   DossierDto({
     required this.id,
     this.referenceNumber,
-    required this.citizenId,
+    this.citizenId,
     this.citizenName,
     required this.caseTypeId,
     this.caseTypeName,
@@ -157,7 +157,7 @@ class DossierDto {
     return DossierDto(
       id: json['id'] as String,
       referenceNumber: json['reference_number'] as String?,
-      citizenId: json['citizen_id'] as String,
+      citizenId: json['citizen_id'] as String?,
       citizenName: json['citizen_name'] as String?,
       caseTypeId: json['case_type_id'] as String,
       caseTypeName: json['case_type_name'] as String?,

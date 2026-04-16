@@ -144,7 +144,7 @@ def _build_dossier_response(dossier: Dossier, completeness: dict | None = None) 
         "reference_number": dossier.reference_number,
         "status": dossier.status,
         # Flat fields for Flutter DTO compatibility
-        "citizen_id": str(dossier.citizen_id),
+        "citizen_id": str(dossier.citizen_id) if dossier.citizen_id else None,
         "citizen_name": dossier.citizen.full_name if dossier.citizen else None,
         "case_type_id": str(dossier.case_type_id),
         "case_type_name": dossier.case_type.name if dossier.case_type else None,
@@ -178,7 +178,7 @@ def _build_dossier_response(dossier: Dossier, completeness: dict | None = None) 
 
 
 class _CreateDossierBody(BaseModel):
-    citizen_id_number: str
+    citizen_id_number: str | None = None
     case_type_id: uuid.UUID
     security_classification: int = 0
     priority: str = "normal"
@@ -195,10 +195,12 @@ async def create_dossier(
     if body.priority not in ("normal", "urgent"):
         raise HTTPException(status_code=422, detail="priority must be 'normal' or 'urgent'")
 
-    citizen_result = await db.execute(select(Citizen).where(Citizen.id_number == body.citizen_id_number))
-    citizen = citizen_result.scalar_one_or_none()
-    if citizen is None:
-        raise HTTPException(status_code=404, detail="Citizen not found. Verify CCCD number.")
+    citizen = None
+    if body.citizen_id_number:
+        citizen_result = await db.execute(select(Citizen).where(Citizen.id_number == body.citizen_id_number))
+        citizen = citizen_result.scalar_one_or_none()
+        if citizen is None:
+            raise HTTPException(status_code=404, detail="Citizen not found. Verify CCCD number.")
 
     ct_result = await db.execute(
         select(CaseType)
@@ -216,7 +218,7 @@ async def create_dossier(
         raise HTTPException(status_code=422, detail="case_type_inactive")
 
     dossier = Dossier(
-        citizen_id=citizen.id,
+        citizen_id=citizen.id if citizen else None,
         submitted_by_staff_id=staff.staff_id,
         case_type_id=case_type.id,
         security_classification=body.security_classification,

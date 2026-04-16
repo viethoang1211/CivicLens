@@ -23,7 +23,7 @@ router = APIRouter()
 
 
 class _CreateSubmissionBody(BaseModel):
-    citizen_id_number: str
+    citizen_id_number: str | None = None
     security_classification: int = 0
     priority: str = "normal"
 
@@ -39,13 +39,15 @@ async def create_submission(
     if body.priority not in ("normal", "urgent"):
         raise HTTPException(status_code=422, detail="priority must be 'normal' or 'urgent'")
 
-    result = await db.execute(select(Citizen).where(Citizen.id_number == body.citizen_id_number))
-    citizen = result.scalar_one_or_none()
-    if citizen is None:
-        raise HTTPException(status_code=404, detail="Citizen not found. Verify CCCD number.")
+    citizen = None
+    if body.citizen_id_number:
+        result = await db.execute(select(Citizen).where(Citizen.id_number == body.citizen_id_number))
+        citizen = result.scalar_one_or_none()
+        if citizen is None:
+            raise HTTPException(status_code=404, detail="Citizen not found. Verify CCCD number.")
 
     submission = Submission(
-        citizen_id=citizen.id,
+        citizen_id=citizen.id if citizen else None,
         submitted_by_staff_id=staff.staff_id,
         security_classification=body.security_classification,
         priority=body.priority,
@@ -58,7 +60,7 @@ async def create_submission(
 
     return {
         "id": str(submission.id),
-        "citizen_id": str(submission.citizen_id),
+        "citizen_id": str(submission.citizen_id) if submission.citizen_id else None,
         "status": submission.status,
         "security_classification": submission.security_classification,
         "priority": submission.priority,
@@ -142,7 +144,7 @@ async def finalize_scan(
         ref_number = _generate_reference_number()
         dossier = Dossier(
             citizen_id=submission.citizen_id,
-            submitted_by_staff_id=staff.staff_member_id,
+            submitted_by_staff_id=staff.staff_id,
             case_type_id=quick_scan_type.id,
             status="submitted",
             reference_number=ref_number,

@@ -8,15 +8,18 @@ class StaffSubmissionsApi {
   StaffSubmissionsApi(this._client);
 
   Future<Map<String, dynamic>> createSubmission({
-    required String citizenIdNumber,
+    String? citizenIdNumber,
     int securityClassification = 0,
     String priority = 'normal',
   }) async {
-    final response = await _client.post('/v1/staff/submissions', data: {
-      'citizen_id_number': citizenIdNumber,
+    final data = <String, dynamic>{
       'security_classification': securityClassification,
       'priority': priority,
-    });
+    };
+    if (citizenIdNumber != null) {
+      data['citizen_id_number'] = citizenIdNumber;
+    }
+    final response = await _client.post('/v1/staff/submissions', data: data);
     return response.data;
   }
 

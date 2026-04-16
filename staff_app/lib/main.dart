@@ -441,12 +441,8 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
     );
     if (caseType == null || !context.mounted) return;
 
-    final citizenId = await _showCitizenIdDialog(context);
-    if (citizenId == null || !context.mounted) return;
-
     try {
       final dossier = await dossierApi.createDossier(
-        citizenIdNumber: citizenId,
         caseTypeId: caseType.id,
       );
       if (!context.mounted) return;
@@ -489,7 +485,6 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
     // Step 2: Create submission via API
     try {
       final submission = await submissionsApi.createSubmission(
-        citizenIdNumber: metadata['citizen_id_number'] as String,
         securityClassification: metadata['security_classification'] as int? ?? 0,
         priority: metadata['priority'] as String? ?? 'normal',
       );
@@ -562,41 +557,6 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
       ),
     );
   }
-}
-
-Future<String?> _showCitizenIdDialog(BuildContext context) {
-  final controller = TextEditingController();
-  return showDialog<String>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Nhập số CCCD công dân'),
-      content: TextField(
-        controller: controller,
-        keyboardType: TextInputType.number,
-        maxLength: 12,
-        autofocus: true,
-        decoration: const InputDecoration(
-          hintText: '012345678901',
-          border: OutlineInputBorder(),
-          labelText: 'Số CCCD',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Huỷ'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final value = controller.text.trim();
-            if (value.isEmpty) return;
-            Navigator.pop(ctx, value);
-          },
-          child: const Text('Tiếp tục'),
-        ),
-      ],
-    ),
-  );
 }
 
 class _FeatureTile extends StatelessWidget {

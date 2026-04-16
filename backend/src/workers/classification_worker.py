@@ -6,7 +6,9 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from src.config import settings
+from src.models.citizen import Citizen
 from src.models.document_type import DocumentType
+from src.models.dossier import Dossier
 from src.models.dossier_document import DossierDocument
 from src.models.scanned_page import ScannedPage
 from src.models.submission import Submission
@@ -14,6 +16,93 @@ from src.services.ai_client import ai_client
 from src.workers.celery_app import celery_app
 
 sync_engine = create_engine(settings.database_url)
+
+logger = logging.getLogger(__name__)
+
+
+def _try_auto_link_citizen(submission: Submission, db: Session) -> None:
+    """Auto-link citizen to submission (and its dossier) if CCCD number found in template_data."""
+    if not isinstance(submission.template_data, dict):
+        return
+
+    so_cccd = submission.template_data.get("so_cccd")
+    if not so_cccd or not isinstance(so_cccd, str):
+        return
+
+    so_cccd = so_cccd.strip()
+    if not so_cccd:
+        return
+
+    citizen = db.execute(
+        select(Citizen).where(Citizen.id_number == so_cccd)
+    ).scalar_one_or_none()
+
+    if citizen is None:
+        # Auto-create citizen from extracted data
+        ho_ten = submission.template_data.get("ho_ten", "").strip() or f"Công dân {so_cccd}"
+        citizen = Citizen(
+            vneid_subject_id=f"auto_{so_cccd}",
+            full_name=ho_ten,
+            id_number=so_cccd,
+        )
+        db.add(citizen)
+        db.flush()
+        logger.info("Auto-created citizen %s (%s) from OCR data", so_cccd, ho_ten)
+
+    submission.citizen_id = citizen.id
+    logger.info("Auto-linked submission %s to citizen %s", submission.id, so_cccd)
+
+    # Also link the dossier if it exists and has no citizen
+    if submission.dossier_id:
+        dossier = db.execute(
+            select(Dossier).where(Dossier.id == submission.dossier_id)
+        ).scalar_one_or_none()
+        if dossier and dossier.citizen_id is None:
+            dossier.citizen_id = citizen.id
+            logger.info("Auto-linked dossier %s to citizen %s", dossier.id, so_cccd)
+
+
+def _try_auto_link_citizen_from_image(dossier: Dossier, image_data: bytes, doc_type: DocumentType, db: Session) -> None:
+    """Run OCR + template fill on a CCCD image to extract citizen info and auto-link to dossier."""
+    try:
+        ocr_text = ai_client.run_ocr(image_data)
+        if not ocr_text or not ocr_text.strip():
+            return
+
+        template_result = ai_client.fill_template(ocr_text, doc_type.template_schema)
+        if isinstance(template_result, str):
+            cleaned = template_result.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
+            filled = json.loads(cleaned)
+        else:
+            filled = template_result
+
+        so_cccd = filled.get("so_cccd", "").strip() if isinstance(filled, dict) else ""
+        if not so_cccd:
+            return
+
+        citizen = db.execute(
+            select(Citizen).where(Citizen.id_number == so_cccd)
+        ).scalar_one_or_none()
+
+        if citizen is None:
+            ho_ten = filled.get("ho_ten", "").strip() or f"Công dân {so_cccd}"
+            citizen = Citizen(
+                vneid_subject_id=f"auto_{so_cccd}",
+                full_name=ho_ten,
+                id_number=so_cccd,
+            )
+            db.add(citizen)
+            db.flush()
+            logger.info("Auto-created citizen %s (%s) from CCCD image", so_cccd, ho_ten)
+
+        dossier.citizen_id = citizen.id
+        db.commit()
+        logger.info("Auto-linked dossier %s to citizen %s from CCCD image", dossier.id, so_cccd)
+
+    except Exception:
+        logger.exception("Failed to auto-link citizen from CCCD image for dossier %s", dossier.id)
 
 
 @celery_app.task(name="classification.run", bind=True, max_retries=3)
@@ -108,6 +197,10 @@ def run_classification(self, submission_id: str):
             else:
                 submission.template_data = filled if isinstance(filled, dict) else {}
 
+        # Auto-link citizen if CCCD number found in template data
+        if submission.citizen_id is None:
+            _try_auto_link_citizen(submission, db)
+
         submission.status = "pending_classification"  # Stays pending until staff confirms
         db.commit()
 
@@ -172,3 +265,11 @@ def validate_document_slot(self, dossier_document_id: str):
 
         doc.ai_match_result = match_result
         db.commit()
+
+        # Auto-link citizen if this is a CCCD document and the dossier has no citizen
+        if doc_type.code == "ID_CCCD" and doc.dossier_id:
+            dossier = db.execute(
+                select(Dossier).where(Dossier.id == doc.dossier_id)
+            ).scalar_one_or_none()
+            if dossier and dossier.citizen_id is None:
+                _try_auto_link_citizen_from_image(dossier, image_data, doc_type, db)

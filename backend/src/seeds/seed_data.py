@@ -1052,6 +1052,7 @@ async def seed_case_types(db: AsyncSession, dept_map: dict | None = None) -> dic
         {"id_number": "012345678901", "full_name": "Phạm Văn Dũng", "phone_number": "0901234567"},
         {"id_number": "012345678902", "full_name": "Nguyễn Thị Mai", "phone_number": "0912345678"},
         {"id_number": "012345678903", "full_name": "Trần Văn Hùng", "phone_number": "0923456789"},
+        {"id_number": "011167000556", "full_name": "Giàng Thị Pà", "phone_number": "0934567890"},
     ]
     for c in citizen_data:
         existing = await db.execute(select(Citizen).where(Citizen.id_number == c["id_number"]))

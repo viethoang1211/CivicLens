@@ -11,7 +11,6 @@ class CreateSubmissionScreen extends StatefulWidget {
 }
 
 class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
-  final _cccdController = TextEditingController();
   int? _securityClassification;
   String _priority = 'normal';
 
@@ -21,12 +20,6 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
       _securityClassification != null && _securityClassification! > widget.staffClearanceLevel;
 
   void _submit() {
-    if (_cccdController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập số CCCD')),
-      );
-      return;
-    }
     if (_securityClassification == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng chọn mức độ bảo mật')),
@@ -63,7 +56,6 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
 
   void _doSubmit() {
     Navigator.of(context).pop({
-      'citizen_id_number': _cccdController.text.trim(),
       'security_classification': _securityClassification,
       'priority': _priority,
     });
@@ -79,19 +71,6 @@ class _CreateSubmissionScreenState extends State<CreateSubmissionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
-              controller: _cccdController,
-              decoration: InputDecoration(
-                labelText: 'Số CCCD công dân',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                hintText: 'Nhập số CCCD 12 chữ số',
-                prefixIcon: const Icon(Icons.credit_card),
-                filled: true,
-                fillColor: cs.surfaceContainerHighest.withAlpha(80),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 24),
             Text('Mức độ bảo mật *', style: TextStyle(fontWeight: FontWeight.w600, color: cs.onSurface)),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(

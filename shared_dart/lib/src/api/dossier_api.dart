@@ -33,19 +33,22 @@ class DossierApi {
   // ── Staff Dossier Operations ─────────────────────────────────────────────
 
   Future<DossierDto> createDossier({
-    required String citizenIdNumber,
+    String? citizenIdNumber,
     required String caseTypeId,
     int securityClassification = 0,
     String priority = 'normal',
   }) async {
+    final data = <String, dynamic>{
+      'case_type_id': caseTypeId,
+      'security_classification': securityClassification,
+      'priority': priority,
+    };
+    if (citizenIdNumber != null) {
+      data['citizen_id_number'] = citizenIdNumber;
+    }
     final response = await _client.post<Map<String, dynamic>>(
       '/v1/staff/dossiers',
-      data: {
-        'citizen_id_number': citizenIdNumber,
-        'case_type_id': caseTypeId,
-        'security_classification': securityClassification,
-        'priority': priority,
-      },
+      data: data,
     );
     return DossierDto.fromJson(response.data as Map<String, dynamic>);
   }

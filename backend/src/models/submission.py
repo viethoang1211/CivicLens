@@ -14,7 +14,7 @@ class Submission(Base, UUIDPrimaryKey, TimestampMixin):
         CheckConstraint("security_classification >= 0 AND security_classification <= 3", name="ck_security_class"),
     )
 
-    citizen_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("citizen.id"), nullable=False)
+    citizen_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("citizen.id"), nullable=True)
     submitted_by_staff_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("staff_member.id"), nullable=False
     )

@@ -11,7 +11,7 @@ from src.models.document_type import DocumentType
 from src.models.routing_rule import RoutingRule
 from src.security.auth import StaffIdentity, get_current_staff
 
-router = APIRouter(prefix="/v1/staff/admin/routing-rules", tags=["admin-routing-rules"])
+router = APIRouter(tags=["admin-routing-rules"])
 
 
 class RoutingRuleCreate(BaseModel):

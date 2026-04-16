@@ -9,7 +9,7 @@ from src.dependencies import get_db
 from src.models.document_type import DocumentType
 from src.security.auth import StaffIdentity, get_current_staff
 
-router = APIRouter(prefix="/v1/staff/admin/document-types", tags=["admin-document-types"])
+router = APIRouter(tags=["admin-document-types"])
 
 
 class DocumentTypeCreate(BaseModel):

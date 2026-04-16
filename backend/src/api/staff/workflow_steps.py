@@ -16,7 +16,7 @@ from src.security.auth import StaffIdentity, get_current_staff
 from src.services.oss_client import OSSClient
 from src.services.review_service import create_consultation, process_review, validate_reviewer
 
-router = APIRouter(prefix="/v1/staff/workflow-steps", tags=["workflow-steps"])
+router = APIRouter(tags=["workflow-steps"])
 
 
 # ── GET /{id} — full review context ─────────────────────

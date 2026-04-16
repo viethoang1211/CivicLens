@@ -13,9 +13,9 @@ class _ScanScreenState extends State<ScanScreen> {
   final ImagePicker _picker = ImagePicker();
   File? _capturedImage;
 
-  Future<void> _captureDocument() async {
+  Future<void> _captureDocument({ImageSource source = ImageSource.camera}) async {
     final XFile? photo = await _picker.pickImage(
-      source: ImageSource.camera,
+      source: source,
       imageQuality: 90,
       preferredCameraDevice: CameraDevice.rear,
     );
@@ -25,6 +25,35 @@ class _ScanScreenState extends State<ScanScreen> {
         _capturedImage = File(photo.path);
       });
     }
+  }
+
+  void _showSourcePicker() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Chụp ảnh'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _captureDocument(source: ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Chọn từ thư viện'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _captureDocument(source: ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -42,9 +71,9 @@ class _ScanScreenState extends State<ScanScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       ElevatedButton.icon(
-                        onPressed: _captureDocument,
+                        onPressed: _showSourcePicker,
                         icon: const Icon(Icons.refresh),
-                        label: const Text('Re-scan'),
+                        label: const Text('Chụp lại'),
                       ),
                       ElevatedButton.icon(
                         onPressed: () {
@@ -58,10 +87,21 @@ class _ScanScreenState extends State<ScanScreen> {
                   const SizedBox(height: 16),
                 ],
               )
-            : ElevatedButton.icon(
-                onPressed: _captureDocument,
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Capture Document'),
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () => _captureDocument(source: ImageSource.camera),
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text('Chụp ảnh'),
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: () => _captureDocument(source: ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('Chọn từ thư viện'),
+                  ),
+                ],
               ),
       ),
     );

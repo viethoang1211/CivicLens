@@ -921,6 +921,19 @@ CASE_TYPES = [
             },
         ],
     },
+    # ── 6. Hồ sơ quét nhanh (Quick Scan) ──
+    {
+        "name": "Hồ sơ quét nhanh",
+        "code": "QUICK_SCAN",
+        "description": (
+            "Hồ sơ được tạo tự động khi nhân viên thực hiện quét nhanh tài liệu. "
+            "Dùng cho các trường hợp tiếp nhận hồ sơ nhanh tại quầy."
+        ),
+        "retention_years": 5,
+        "retention_permanent": False,
+        "routing": ["RECEPTION"],
+        "groups": [],
+    },
 ]
 
 

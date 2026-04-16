@@ -33,8 +33,13 @@ class Submission(Base, UUIDPrimaryKey, TimestampMixin):
     ai_summary: Mapped[str | None] = mapped_column(Text)
     ai_summary_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    dossier_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("dossier.id"), nullable=True
+    )
+
     citizen = relationship("Citizen", back_populates="submissions")
     submitted_by_staff = relationship("StaffMember", foreign_keys=[submitted_by_staff_id])
     document_type = relationship("DocumentType", back_populates="submissions")
+    dossier = relationship("Dossier", foreign_keys=[dossier_id])
     scanned_pages = relationship("ScannedPage", back_populates="submission", order_by="ScannedPage.page_number")
     workflow_steps = relationship("WorkflowStep", back_populates="submission", order_by="WorkflowStep.step_order")

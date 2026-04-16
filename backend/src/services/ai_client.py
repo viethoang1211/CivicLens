@@ -13,8 +13,8 @@ if settings.dashscope_api_base:
 
 class AIClient:
     OCR_MODEL = "qwen-vl-ocr"
-    OCR_FALLBACK_MODEL = "qwen3-vl-plus"
-    CLASSIFICATION_MODEL = "qwen3.5-flash"
+    OCR_FALLBACK_MODEL = "qwen-vl-max"
+    CLASSIFICATION_MODEL = "qwen-plus"
 
     def run_ocr(self, image_data: bytes, use_fallback: bool = False) -> dict:
         model = self.OCR_FALLBACK_MODEL if use_fallback else self.OCR_MODEL

@@ -44,12 +44,12 @@ class CitizenApi {
 
   /// List notifications with unread count.
   Future<Map<String, dynamic>> listNotifications({
-    int skip = 0,
-    int limit = 50,
+    int page = 1,
+    int perPage = 20,
   }) async {
     return await _client.get('/v1/citizen/notifications', queryParameters: {
-      'skip': skip,
-      'limit': limit,
+      'page': page,
+      'per_page': perPage,
     }).then((r) => r.data);
   }
 

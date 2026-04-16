@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_dart/shared_dart.dart';
 
+import '../submissions/dossier_status_screen.dart';
+
 class NotificationsScreen extends StatefulWidget {
   final ApiClient apiClient;
 
@@ -15,6 +17,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _loading = true;
   String? _error;
 
+  late final CitizenApi _citizenApi = CitizenApi(client: widget.apiClient);
+  late final CitizenDossierApi _dossierApi = CitizenDossierApi(widget.apiClient);
+
   @override
   void initState() {
     super.initState();
@@ -24,8 +29,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _loadNotifications() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final resp = await widget.apiClient.get('/v1/citizen/notifications');
-      final items = (resp.data['notifications'] as List)
+      final resp = await _citizenApi.listNotifications();
+      final items = (resp['notifications'] as List)
           .map((e) => NotificationDto.fromJson(e as Map<String, dynamic>))
           .toList();
       setState(() { _notifications = items; _loading = false; });
@@ -36,7 +41,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _markRead(String notificationId) async {
     try {
-      await widget.apiClient.put('/v1/citizen/notifications/$notificationId/read', data: {});
+      await _citizenApi.markNotificationRead(notificationId);
       setState(() {
         final idx = _notifications.indexWhere((n) => n.id == notificationId);
         if (idx != -1) {
@@ -44,6 +49,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         }
       });
     } catch (_) {}
+  }
+
+  Future<void> _markAllRead() async {
+    for (final n in _notifications.where((n) => !n.isRead)) {
+      await _markRead(n.id);
+    }
+  }
+
+  void _onNotificationTap(NotificationDto n) {
+    if (!n.isRead) _markRead(n.id);
+    if (n.dossierId != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DossierStatusScreen(
+            dossierId: n.dossierId!,
+            citizenDossierApi: _dossierApi,
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -54,12 +79,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         actions: [
           if (_notifications.any((n) => !n.isRead))
             TextButton(
-              onPressed: () async {
-                for (final n in _notifications.where((n) => !n.isRead)) {
-                  await _markRead(n.id);
-                }
-              },
-              child: const Text('Mark all read'),
+              onPressed: _markAllRead,
+              child: const Text('Đánh dấu tất cả đã đọc'),
             ),
         ],
       ),
@@ -74,15 +95,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Error: $_error'),
+            Text('Lỗi: $_error'),
             const SizedBox(height: 8),
-            ElevatedButton(onPressed: _loadNotifications, child: const Text('Retry')),
+            ElevatedButton(onPressed: _loadNotifications, child: const Text('Thử lại')),
           ],
         ),
       );
     }
     if (_notifications.isEmpty) {
-      return const Center(child: Text('No notifications yet'));
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.notifications_off, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('Chưa có thông báo', style: TextStyle(color: Colors.grey, fontSize: 15)),
+          ],
+        ),
+      );
     }
 
     return RefreshIndicator(
@@ -103,9 +133,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               _formatRelative(n.sentAt),
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
-            onTap: () {
-              if (!n.isRead) _markRead(n.id);
-            },
+            onTap: () => _onNotificationTap(n),
           );
         },
       ),
@@ -124,8 +152,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   String _formatRelative(DateTime dt) {
     final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} phút trước';
+    if (diff.inHours < 24) return '${diff.inHours} giờ trước';
+    return '${diff.inDays} ngày trước';
   }
 }

@@ -9,6 +9,7 @@ import 'features/auth/staff_auth_screen.dart';
 import 'features/dossier/case_type_selector_screen.dart';
 import 'features/dossier/guided_capture_screen.dart';
 import 'features/review/department_queue_screen.dart';
+import 'features/review/document_review_screen.dart';
 import 'features/scan/create_submission_screen.dart';
 import 'features/scan/multi_page_scan.dart';
 import 'features/search/search_screen.dart';
@@ -51,6 +52,18 @@ class StaffApp extends StatelessWidget {
       routes: {
         '/login': (_) => StaffAuthScreen(apiBaseUrl: kApiBaseUrl),
         '/home': (_) => const _StaffHomeScreen(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/review') {
+          final stepId = settings.arguments as String;
+          return MaterialPageRoute(
+            builder: (_) => DocumentReviewScreen(
+              apiClient: ApiClient(baseUrl: kApiBaseUrl),
+              stepId: stepId,
+            ),
+          );
+        }
+        return null;
       },
     );
   }

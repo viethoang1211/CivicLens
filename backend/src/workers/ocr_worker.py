@@ -45,7 +45,7 @@ def run_ocr_pipeline(self, submission_id: str):
                 page.ocr_confidence = 0.0
 
         submission = db.execute(select(Submission).where(Submission.id == sub_uuid)).scalar_one()
-        submission.status = "pending_classification"
+        submission.status = "classifying"  # OCR done; classification task now running
         db.commit()
 
     # Chain: trigger classification after OCR

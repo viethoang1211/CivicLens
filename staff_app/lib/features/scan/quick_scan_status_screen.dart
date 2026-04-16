@@ -34,13 +34,15 @@ class _QuickScanStatusScreenState extends State<QuickScanStatusScreen> {
 
   static const _statusLabels = {
     'ocr_processing': 'Đang trích xuất văn bản (OCR)...',
-    'pending_classification': 'Đang phân loại tài liệu...',
+    'classifying': 'Đang phân loại tài liệu (AI)...',
+    'pending_classification': 'Phân loại xong — chờ xác nhận',
     'classified': 'Đã phân loại xong',
   };
 
   static const _statusIcons = {
     'ocr_processing': Icons.document_scanner_rounded,
-    'pending_classification': Icons.auto_awesome,
+    'classifying': Icons.auto_awesome,
+    'pending_classification': Icons.fact_check_rounded,
     'classified': Icons.check_circle_rounded,
   };
 
@@ -76,12 +78,11 @@ class _QuickScanStatusScreenState extends State<QuickScanStatusScreen> {
         _error = null;
       });
 
-      // Stop polling once classification is done
+      // Keep polling through ocr_processing and classifying;
+      // stop only when classification result is ready
       if (newStatus == 'pending_classification' || newStatus == 'classified') {
         _pollTimer?.cancel();
-        if (newStatus == 'pending_classification') {
-          _loadClassificationDetails();
-        }
+        _loadClassificationDetails();
       }
     } catch (e) {
       if (mounted) {
@@ -132,7 +133,7 @@ class _QuickScanStatusScreenState extends State<QuickScanStatusScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isProcessing = _status == 'ocr_processing';
+    final isProcessing = _status == 'ocr_processing' || _status == 'classifying';
     final isPendingReview = _status == 'pending_classification';
     final isDone = _status == 'classified';
 
@@ -174,7 +175,9 @@ class _QuickScanStatusScreenState extends State<QuickScanStatusScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Vui lòng chờ trong giây lát...',
+                    _status == 'classifying'
+                        ? 'AI đang phân tích hình ảnh và nội dung...'
+                        : 'Vui lòng chờ trong giây lát...',
                     style: TextStyle(color: cs.onSurface.withAlpha(150), fontSize: 13),
                   ),
                 ],

@@ -61,19 +61,18 @@ class _DossierListScreenState extends State<DossierListScreen> {
           // Filter chips
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 0,
               children: _filters.entries.map((e) {
                 final selected = _statusFilter == e.key;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(e.value),
-                    selected: selected,
-                    onSelected: (_) {
-                      setState(() => _statusFilter = e.key);
-                      _load();
-                    },
-                  ),
+                return FilterChip(
+                  label: Text(e.value),
+                  selected: selected,
+                  onSelected: (_) {
+                    setState(() => _statusFilter = e.key);
+                    _load();
+                  },
                 );
               }).toList(),
             ),

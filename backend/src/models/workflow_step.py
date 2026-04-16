@@ -37,7 +37,7 @@ class WorkflowStep(Base, UUIDPrimaryKey, TimestampMixin):
     result: Mapped[str | None] = mapped_column(String(20))
 
     submission = relationship("Submission", back_populates="workflow_steps", foreign_keys=[submission_id])
-    dossier = relationship("Dossier", foreign_keys=[dossier_id])
+    dossier = relationship("Dossier", foreign_keys=[dossier_id], overlaps="workflow_steps")
     department = relationship("Department")
     assigned_reviewer = relationship("StaffMember", foreign_keys=[assigned_reviewer_id])
     annotations = relationship("StepAnnotation", back_populates="workflow_step")

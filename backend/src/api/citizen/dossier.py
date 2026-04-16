@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from src.dependencies import get_db
 from src.models.dossier import Dossier
+from src.models.workflow_step import WorkflowStep
 from src.security.auth import CitizenIdentity, get_current_citizen
 
 router = APIRouter(prefix="/v1/citizen/dossiers", tags=["citizen-dossiers"])
@@ -27,6 +28,7 @@ def _build_workflow_steps(workflow_steps: list) -> list[dict]:
         {
             "step_order": ws.step_order,
             "department_id": str(ws.department_id),
+            "department_name": ws.department.name if ws.department else None,
             "status": ws.status,
             "status_label_vi": _STATUS_LABELS_VI.get(ws.status, ws.status),
             "started_at": ws.started_at.isoformat() if ws.started_at else None,
@@ -67,7 +69,7 @@ async def _load_dossier_tracking(dossier_id: uuid.UUID, db: AsyncSession) -> Dos
         .where(Dossier.id == dossier_id)
         .options(
             selectinload(Dossier.case_type),
-            selectinload(Dossier.workflow_steps),
+            selectinload(Dossier.workflow_steps).selectinload(WorkflowStep.department),
         )
     )
     dossier = result.scalar_one_or_none()
@@ -91,7 +93,10 @@ async def list_citizen_dossiers(
     query = (
         select(Dossier)
         .where(Dossier.citizen_id == citizen.citizen_id)
-        .options(selectinload(Dossier.case_type), selectinload(Dossier.workflow_steps))
+        .options(
+            selectinload(Dossier.case_type),
+            selectinload(Dossier.workflow_steps).selectinload(WorkflowStep.department),
+        )
         .order_by(Dossier.created_at.desc())
     )
     if status_filter:

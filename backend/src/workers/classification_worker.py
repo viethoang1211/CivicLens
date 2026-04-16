@@ -20,6 +20,119 @@ sync_engine = create_engine(settings.database_url)
 logger = logging.getLogger(__name__)
 
 
+# ── JSON parsing helper ──────────────────────────────────────────
+
+def _parse_ai_json(raw_result) -> dict | None:
+    """Safely parse AI classification result from raw string or dict."""
+    try:
+        if isinstance(raw_result, dict):
+            return raw_result
+        if isinstance(raw_result, str):
+            cleaned = raw_result.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
+            return json.loads(cleaned)
+    except (json.JSONDecodeError, IndexError, ValueError):
+        return None
+
+
+# ── Dual-path ensemble ───────────────────────────────────────────
+
+def _ensemble_classification(
+    text_result: dict | None,
+    vision_result: dict | None,
+) -> dict:
+    """Combine text-based and vision-based classification into a calibrated result.
+
+    Strategy:
+    - Both agree on document type  → average confidence + 10% agreement bonus (capped at 1.0)
+    - Disagree → pick highest confidence, apply 20% penalty, include other as alternative
+    - One path failed → use the surviving path as-is
+    """
+    if text_result is None and vision_result is None:
+        return {"document_type_code": None, "confidence": 0.0, "method": "failed"}
+
+    if text_result is None:
+        vision_result["method"] = "vision_only"
+        return vision_result
+
+    if vision_result is None:
+        text_result["method"] = "text_only"
+        return text_result
+
+    text_code = text_result.get("document_type_code")
+    vision_code = vision_result.get("document_type_code")
+    text_conf = float(text_result.get("confidence", 0.0))
+    vision_conf = float(vision_result.get("confidence", 0.0))
+
+    if text_code == vision_code:
+        # ── Both models agree → boost confidence ──
+        ensemble_conf = min(1.0, (text_conf + vision_conf) / 2 + 0.10)
+
+        reasoning_parts = []
+        if vision_result.get("reasoning"):
+            reasoning_parts.append(f"[Hình ảnh] {vision_result['reasoning']}")
+        if text_result.get("reasoning"):
+            reasoning_parts.append(f"[Nội dung] {text_result['reasoning']}")
+
+        return {
+            "document_type_code": text_code,
+            "confidence": round(ensemble_conf, 4),
+            "method": "ensemble_agree",
+            "reasoning": " | ".join(reasoning_parts) or None,
+            "visual_features": vision_result.get("visual_features", []),
+            "key_signals": text_result.get("key_signals", []),
+            "alternatives": text_result.get("alternatives", []),
+            "ensemble_detail": {
+                "text_code": text_code,
+                "text_confidence": text_conf,
+                "vision_code": vision_code,
+                "vision_confidence": vision_conf,
+                "agreement": True,
+            },
+        }
+
+    # ── Models disagree → use highest confidence with penalty ──
+    if vision_conf >= text_conf:
+        primary, secondary, source = vision_result, text_result, "vision"
+    else:
+        primary, secondary, source = text_result, vision_result, "text"
+
+    primary_conf = float(primary.get("confidence", 0.0))
+    ensemble_conf = primary_conf * 0.80  # 20% penalty for disagreement
+
+    # Include the other model's pick as the first alternative
+    secondary_alt = {
+        "code": secondary.get("document_type_code"),
+        "confidence": float(secondary.get("confidence", 0.0)),
+    }
+    alternatives = [secondary_alt] + primary.get("alternatives", [])
+
+    reasoning_parts = []
+    if primary.get("reasoning"):
+        reasoning_parts.append(f"[{source}] {primary['reasoning']}")
+    if secondary.get("reasoning"):
+        other_source = "text" if source == "vision" else "vision"
+        reasoning_parts.append(f"[{other_source}] {secondary['reasoning']}")
+
+    return {
+        "document_type_code": primary.get("document_type_code"),
+        "confidence": round(ensemble_conf, 4),
+        "method": "ensemble_disagree",
+        "reasoning": " | ".join(reasoning_parts) or None,
+        "visual_features": vision_result.get("visual_features", []),
+        "key_signals": text_result.get("key_signals", []),
+        "alternatives": alternatives[:5],
+        "ensemble_detail": {
+            "text_code": text_code,
+            "text_confidence": text_conf,
+            "vision_code": vision_code,
+            "vision_confidence": vision_conf,
+            "agreement": False,
+        },
+    }
+
+
 def _try_auto_link_citizen(submission: Submission, db: Session) -> None:
     """Auto-link citizen to submission (and its dossier) if CCCD number found in template_data."""
     if not isinstance(submission.template_data, dict):
@@ -107,6 +220,12 @@ def _try_auto_link_citizen_from_image(dossier: Dossier, image_data: bytes, doc_t
 
 @celery_app.task(name="classification.run", bind=True, max_retries=3)
 def run_classification(self, submission_id: str):
+    """Dual-path ensemble classification: Vision + Text models cross-validate.
+
+    Path 1 (Text):   qwen3.5-flash classifies from OCR text content
+    Path 2 (Vision): qwen3-vl-plus classifies from the document image directly
+    Ensemble:        Combine both results with calibrated confidence scoring
+    """
     sub_uuid = uuid.UUID(submission_id)
 
     with Session(sync_engine) as db:
@@ -129,26 +248,58 @@ def run_classification(self, submission_id: str):
             select(DocumentType).where(DocumentType.is_active.is_(True))
         ).scalars().all()
 
-        type_dicts = [
-            {"code": dt.code, "name": dt.name, "description": dt.description or ""}
-            for dt in doc_types
-        ]
-
-        # Run AI classification
-        raw_result = ai_client.classify_document(combined_text, type_dicts)
-
-        # Parse result
+        # ── Path 1: Text-based classification ────────────────────
+        text_result = None
         try:
-            if isinstance(raw_result, str):
-                # Strip markdown code fences if present
-                cleaned = raw_result.strip()
-                if cleaned.startswith("```"):
-                    cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
-                classification = json.loads(cleaned)
-            else:
-                classification = raw_result
-        except (json.JSONDecodeError, IndexError):
-            return  # Failed to parse; leave in pending_classification
+            type_dicts = [
+                {"code": dt.code, "name": dt.name, "description": dt.description or ""}
+                for dt in doc_types
+            ]
+            raw_text = ai_client.classify_document(combined_text, type_dicts)
+            text_result = _parse_ai_json(raw_text)
+            logger.info("Text classification for %s: %s (%.2f)",
+                        submission_id,
+                        text_result.get("document_type_code") if text_result else "FAILED",
+                        float(text_result.get("confidence", 0)) if text_result else 0)
+        except Exception:
+            logger.exception("Text classification failed for %s", submission_id)
+
+        # ── Path 2: Vision-based classification ──────────────────
+        vision_result = None
+        first_page = pages[0] if pages else None
+        if first_page and first_page.image_oss_key:
+            try:
+                from src.services.oss_client import oss_client
+                image_data = oss_client.download(first_page.image_oss_key)
+
+                # Pass classification_prompt as visual hints
+                vision_type_dicts = [
+                    {
+                        "code": dt.code,
+                        "name": dt.name,
+                        "classification_prompt": dt.classification_prompt or dt.description or "",
+                    }
+                    for dt in doc_types
+                ]
+                raw_vision = ai_client.classify_document_visual(image_data, vision_type_dicts)
+                vision_result = _parse_ai_json(raw_vision)
+                logger.info("Vision classification for %s: %s (%.2f)",
+                            submission_id,
+                            vision_result.get("document_type_code") if vision_result else "FAILED",
+                            float(vision_result.get("confidence", 0)) if vision_result else 0)
+            except Exception:
+                logger.exception("Vision classification failed for %s", submission_id)
+
+        # ── Ensemble: combine both paths ─────────────────────────
+        classification = _ensemble_classification(text_result, vision_result)
+        logger.info("Ensemble result for %s: %s (%.2f, method=%s)",
+                     submission_id,
+                     classification.get("document_type_code"),
+                     float(classification.get("confidence", 0)),
+                     classification.get("method"))
+
+        if classification.get("document_type_code") is None:
+            return  # Both paths failed; leave in pending_classification
 
         # Match document type by code
         matched_type = None
@@ -169,12 +320,22 @@ def run_classification(self, submission_id: str):
                 submission.classification_method = "ai"
             else:
                 submission.classification_method = "ai_low_confidence"
-                # Store alternatives for staff review
-                alternatives = classification.get("alternatives", [])
-                if alternatives:
-                    if submission.template_data is None:
-                        submission.template_data = {}
-                    submission.template_data["_classification_alternatives"] = alternatives
+
+            # Prepare template_data with classification metadata
+            if submission.template_data is None:
+                submission.template_data = {}
+
+            # Store alternatives for staff review
+            alternatives = classification.get("alternatives", [])
+            if alternatives:
+                submission.template_data["_classification_alternatives"] = alternatives
+
+            # Store ensemble reasoning & details for audit trail
+            submission.template_data["_classification_reasoning"] = classification.get("reasoning")
+            submission.template_data["_classification_method"] = classification.get("method")
+            submission.template_data["_classification_visual_features"] = classification.get("visual_features", [])
+            submission.template_data["_classification_key_signals"] = classification.get("key_signals", [])
+            submission.template_data["_classification_ensemble"] = classification.get("ensemble_detail")
 
             # Run template filling
             template_result = ai_client.fill_template(combined_text, matched_type.template_schema)
@@ -189,17 +350,42 @@ def run_classification(self, submission_id: str):
             except (json.JSONDecodeError, IndexError):
                 filled = {}
 
-            # Merge template data, preserving _classification_alternatives
-            if submission.template_data and "_classification_alternatives" in submission.template_data:
-                alts = submission.template_data["_classification_alternatives"]
-                submission.template_data = filled if isinstance(filled, dict) else {}
-                submission.template_data["_classification_alternatives"] = alts
-            else:
-                submission.template_data = filled if isinstance(filled, dict) else {}
+            # Merge template data, preserving classification metadata
+            classification_meta = {
+                k: v for k, v in submission.template_data.items()
+                if k.startswith("_classification_")
+            }
+            submission.template_data = filled if isinstance(filled, dict) else {}
+            submission.template_data.update(classification_meta)
 
         # Auto-link citizen if CCCD number found in template data
         if submission.citizen_id is None:
             _try_auto_link_citizen(submission, db)
+
+        # ── Check if CCCD identification is present ──────────────
+        # For quick scan submissions, detect whether the scanned document
+        # contains citizen identification (CCCD number) so the app can
+        # prompt staff to scan a CCCD if missing.
+        has_citizen_id = submission.citizen_id is not None
+        if not has_citizen_id and isinstance(submission.template_data, dict):
+            so_cccd = submission.template_data.get("so_cccd", "")
+            has_citizen_id = bool(so_cccd and str(so_cccd).strip())
+
+        doc_code = matched_type.code if matched_type else None
+        is_id_document = doc_code in ("ID_CCCD", "PASSPORT_VN")
+
+        if submission.template_data is None:
+            submission.template_data = {}
+
+        submission.template_data["_citizen_identified"] = has_citizen_id
+        submission.template_data["_is_id_document"] = is_id_document
+        if not has_citizen_id and not is_id_document:
+            submission.template_data["_missing_cccd_warning"] = (
+                "Không tìm thấy thông tin CCCD công dân trong tài liệu. "
+                "Vui lòng quét thêm ảnh CCCD/CMND để liên kết hồ sơ với công dân."
+            )
+        else:
+            submission.template_data.pop("_missing_cccd_warning", None)
 
         submission.status = "pending_classification"  # Stays pending until staff confirms
         db.commit()

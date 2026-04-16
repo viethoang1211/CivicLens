@@ -39,29 +39,94 @@ class AIClient:
         return {"text": text, "model": model}
 
     def classify_document(self, ocr_text: str, document_types: list[dict]) -> dict:
+        """Text-based classification using OCR content analysis."""
         type_descriptions = "\n".join(
-            f"- Code: {dt['code']}, Name: {dt['name']}, Description: {dt.get('description', '')}"
+            f"- Code: {dt['code']}, Tên: {dt['name']}, Mô tả: {dt.get('description', '')}"
             for dt in document_types
         )
-        prompt = f"""Classify the following document text into one of these document types.
-
-Available types:
-{type_descriptions}
-
-Document text:
-{ocr_text[:8000]}
-
-Respond in JSON format:
-{{"document_type_code": "...", "confidence": 0.0-1.0, "alternatives": [{{"code": "...", "confidence": 0.0-1.0}}]}}"""
+        prompt = (
+            "Bạn là chuyên gia phân loại tài liệu hành chính công Việt Nam.\n"
+            "Phân tích nội dung OCR dưới đây và xác định loại tài liệu.\n\n"
+            "Hãy suy luận theo các bước:\n"
+            "1. Nhận diện từ khóa đặc trưng (tên biểu mẫu, tiêu đề, cơ quan ban hành)\n"
+            "2. Nhận diện thông tin cá nhân (họ tên, số CCCD, ngày sinh, địa chỉ)\n"
+            "3. So khớp với loại tài liệu phù hợp nhất\n\n"
+            f"Các loại tài liệu có thể:\n{type_descriptions}\n\n"
+            f"Nội dung OCR:\n{ocr_text[:8000]}\n\n"
+            "Trả lời bằng JSON (KHÔNG markdown, KHÔNG giải thích thêm ngoài JSON):\n"
+            '{"document_type_code": "...", "confidence": 0.0-1.0, '
+            '"reasoning": "giải thích ngắn gọn bằng tiếng Việt tại sao chọn loại này", '
+            '"key_signals": ["từ khóa/cụm từ đặc trưng đã phát hiện"], '
+            '"alternatives": [{"code": "...", "confidence": 0.0-1.0}]}'
+        )
 
         response = dashscope.Generation.call(
             model=self.CLASSIFICATION_MODEL,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Bạn là hệ thống phân loại tài liệu hành chính Việt Nam. "
+                        "Trả lời bằng JSON hợp lệ duy nhất, không thêm markdown hay giải thích."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
             result_format="message",
         )
         if response.status_code != 200:
             raise RuntimeError(f"Classification API error: {response.code} {response.message}")
         return response.output.choices[0].message.content
+
+    def classify_document_visual(self, image_data: bytes, document_types: list[dict]) -> dict:
+        """Vision-based classification using visual features (layout, stamps, logos, formatting).
+
+        Uses the multimodal model to classify directly from the document image,
+        leveraging classification_prompt hints per document type for visual matching.
+        """
+        type_descriptions = "\n".join(
+            f"- Code: {dt['code']}, Tên: {dt['name']}, "
+            f"Đặc điểm nhận dạng: {dt.get('classification_prompt') or dt.get('description', '')}"
+            for dt in document_types
+        )
+
+        image_b64 = base64.b64encode(image_data).decode("utf-8")
+
+        prompt = (
+            "Bạn là chuyên gia phân loại tài liệu hành chính Việt Nam.\n"
+            "Hãy NHÌN vào hình ảnh tài liệu này và phân loại dựa trên đặc điểm hình thức.\n\n"
+            "Hãy suy luận theo các bước:\n"
+            "1. Nhận diện đặc điểm hình thức (bố cục trang, con dấu đỏ, quốc huy, tiêu đề in đậm)\n"
+            "2. Nhận diện định dạng (thẻ nhựa, giấy A4, biểu mẫu có ô điền, văn bản tự do)\n"
+            "3. Nhận diện nội dung nổi bật (họ tên, số giấy tờ, ngày tháng)\n"
+            "4. So khớp với loại tài liệu phù hợp nhất\n\n"
+            f"Các loại tài liệu có thể:\n{type_descriptions}\n\n"
+            "Trả lời bằng JSON (KHÔNG markdown):\n"
+            '{"document_type_code": "...", "confidence": 0.0-1.0, '
+            '"reasoning": "giải thích ngắn gọn bằng tiếng Việt", '
+            '"visual_features": ["đặc điểm hình thức đã phát hiện"], '
+            '"alternatives": [{"code": "...", "confidence": 0.0-1.0}]}'
+        )
+
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"image": f"data:image/jpeg;base64,{image_b64}"},
+                    {"text": prompt},
+                ],
+            }
+        ]
+
+        response = MultiModalConversation.call(
+            model=self.OCR_FALLBACK_MODEL,
+            messages=messages,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"Visual classification API error: {response.code} {response.message}")
+
+        content = response.output.choices[0].message.content
+        return content[0]["text"] if isinstance(content, list) else content
 
     def fill_template(self, ocr_text: str, template_schema: dict) -> dict:
         fields = ", ".join(template_schema.keys()) if isinstance(template_schema, dict) else str(template_schema)

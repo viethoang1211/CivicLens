@@ -26,7 +26,6 @@ class QuickScanStatusScreen extends StatefulWidget {
 class _QuickScanStatusScreenState extends State<QuickScanStatusScreen> {
   Timer? _pollTimer;
   String _status = 'ocr_processing';
-  String? _documentTypeId;
   double? _confidence;
   String? _classificationMethod;
   String? _error;
@@ -70,7 +69,6 @@ class _QuickScanStatusScreenState extends State<QuickScanStatusScreen> {
       final newStatus = result['status'] as String? ?? _status;
       setState(() {
         _status = newStatus;
-        _documentTypeId = result['document_type_id'] as String?;
         _confidence = result['classification_confidence'] != null
             ? (result['classification_confidence'] as num).toDouble()
             : null;
@@ -216,6 +214,7 @@ class _QuickScanStatusScreenState extends State<QuickScanStatusScreen> {
             if (_loadingClassification)
               const Center(child: CircularProgressIndicator())
             else if (_classificationResult != null) ...[
+              _buildCitizenCheckWarning(cs),
               _buildClassificationCard(cs),
               if (isPendingReview) ...[
                 const SizedBox(height: 24),
@@ -255,12 +254,77 @@ class _QuickScanStatusScreenState extends State<QuickScanStatusScreen> {
     );
   }
 
+  Widget _buildCitizenCheckWarning(ColorScheme cs) {
+    final citizenCheck = _classificationResult!['citizen_check'] as Map<String, dynamic>? ?? {};
+    final warning = citizenCheck['missing_cccd_warning'] as String?;
+    final isIdDocument = citizenCheck['is_id_document'] as bool? ?? false;
+    final citizenIdentified = citizenCheck['citizen_identified'] as bool? ?? false;
+
+    if (warning == null || isIdDocument || citizenIdentified) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        color: Colors.amber.shade50,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.amber.shade300),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.credit_card_off, color: Colors.amber.shade800, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Thiếu ảnh CCCD',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.amber.shade900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      warning,
+                      style: TextStyle(fontSize: 13, color: Colors.amber.shade900),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).pop('scan_cccd'),
+                      icon: const Icon(Icons.camera_alt, size: 18),
+                      label: const Text('Quét CCCD ngay'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.amber.shade900,
+                        side: BorderSide(color: Colors.amber.shade600),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildClassificationCard(ColorScheme cs) {
     final classification = _classificationResult!['classification'] as Map<String, dynamic>? ?? {};
     final docTypeName = classification['document_type_name'] as String?;
     final confidence = classification['confidence'] as num?;
+    final method = classification['method'] as String?;
     final alternatives = classification['alternatives'] as List<dynamic>? ?? [];
     final aiSummary = _classificationResult!['ai_summary'] as String?;
+    final aiReasoning = _classificationResult!['ai_reasoning'] as Map<String, dynamic>? ?? {};
 
     return Card(
       child: Padding(
@@ -304,9 +368,81 @@ class _QuickScanStatusScreenState extends State<QuickScanStatusScreen> {
                 color: confidence > 0.8 ? Colors.green : confidence > 0.5 ? Colors.orange : Colors.red,
               ),
               const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text(
+                    'Độ tin cậy: ${(confidence * 100).toStringAsFixed(0)}%',
+                    style: TextStyle(fontSize: 13, color: cs.onSurface.withAlpha(150)),
+                  ),
+                  if (method != null) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: method.contains('agree') ? Colors.green.withAlpha(25) : Colors.orange.withAlpha(25),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        method == 'ensemble_agree' ? 'AI đồng thuận' :
+                        method == 'ensemble_disagree' ? 'AI không đồng thuận' :
+                        method == 'vision_only' ? 'Chỉ hình ảnh' :
+                        method == 'text_only' ? 'Chỉ nội dung' : method,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: method.contains('agree') ? Colors.green.shade700 : Colors.orange.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+            // ── AI reasoning ──
+            if (aiReasoning['explanation'] != null) ...[
+              const SizedBox(height: 12),
               Text(
-                'Độ tin cậy: ${(confidence * 100).toStringAsFixed(0)}%',
-                style: TextStyle(fontSize: 13, color: cs.onSurface.withAlpha(150)),
+                'Lý do phân loại:',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurface.withAlpha(180)),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                aiReasoning['explanation'] as String,
+                style: const TextStyle(fontSize: 13),
+              ),
+            ],
+            if ((aiReasoning['visual_features'] as List?)?.isNotEmpty ?? false) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: [
+                  Icon(Icons.visibility, size: 14, color: cs.primary),
+                  const SizedBox(width: 2),
+                  ...(aiReasoning['visual_features'] as List).map((f) => Chip(
+                    label: Text(f.toString(), style: const TextStyle(fontSize: 11)),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                  )),
+                ],
+              ),
+            ],
+            if ((aiReasoning['key_signals'] as List?)?.isNotEmpty ?? false) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: [
+                  Icon(Icons.text_snippet, size: 14, color: cs.secondary),
+                  const SizedBox(width: 2),
+                  ...(aiReasoning['key_signals'] as List).map((s) => Chip(
+                    label: Text(s.toString(), style: const TextStyle(fontSize: 11)),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                  )),
+                ],
               ),
             ],
             if (aiSummary != null) ...[

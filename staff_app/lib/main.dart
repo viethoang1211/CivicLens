@@ -518,7 +518,7 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
         Navigator.of(context).pop(); // dismiss progress dialog
 
         // Step 6: Navigate to processing status screen
-        await Navigator.of(context).push(
+        final scanResult = await Navigator.of(context).push<String>(
           MaterialPageRoute(
             builder: (_) => QuickScanStatusScreen(
               submissionId: submissionId,
@@ -528,6 +528,18 @@ class _StaffHomeScreenState extends State<_StaffHomeScreen> {
             ),
           ),
         );
+
+        // If staff chose to scan CCCD, restart quick scan flow
+        if (scanResult == 'scan_cccd' && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vui lòng quét ảnh CCCD/CMND của công dân'),
+              backgroundColor: Colors.amber,
+              duration: Duration(seconds: 3),
+            ),
+          );
+          _startQuickScan();
+        }
       }
     } on DioException catch (e) {
       if (context.mounted) {

@@ -182,10 +182,14 @@ async def authorize_submit(
         .code-label {{ font-size: 13px; color: #888; margin-bottom: 8px; }}
         .code {{ font-family: 'Courier New', monospace; font-size: 14px; word-break: break-all;
                  color: #1b5e20; font-weight: 700; user-select: all; }}
+        input.code-input {{ width: 100%; font-family: 'Courier New', monospace; font-size: 14px;
+                 color: #1b5e20; font-weight: 700; background: transparent; border: none;
+                 text-align: center; outline: none; }}
         button {{ padding: 12px 32px; background: #1b5e20; color: white; border: none;
                   border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
                   transition: background 0.2s; }}
         button:hover {{ background: #2e7d32; }}
+        .copied {{ background: #43a047 !important; }}
         .hint {{ color: #999; font-size: 12px; margin-top: 16px; }}
     </style>
 </head>
@@ -195,14 +199,37 @@ async def authorize_submit(
         <h1>Xác thực thành công!</h1>
         <div class="citizen">{citizen["full_name"]} — CCCD: {citizen["id_number"]}</div>
         <div class="code-box">
-            <div class="code-label">Mã xác thực (copy và dán vào app):</div>
-            <div class="code" id="authCode">{code}</div>
+            <div class="code-label">Mã xác thực (nhấn để chọn, rồi copy):</div>
+            <input class="code-input" id="authCode" value="{code}" readonly onclick="this.select();" onfocus="this.select();">
         </div>
-        <button onclick="var t=document.getElementById('authCode').textContent;if(navigator.clipboard&&window.isSecureContext){{navigator.clipboard.writeText(t).then(()=>this.textContent='Đã copy ✓')}}else{{var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.left='-9999px';document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);this.textContent='Đã copy ✓'}}">
+        <button id="copyBtn" onclick="copyCode()">
             📋 Copy mã
         </button>
-        <div class="hint">Quay lại ứng dụng và dán mã này để hoàn tất đăng nhập</div>
+        <div class="hint">Nhấn vào mã phía trên để chọn → Copy → Quay lại app và dán</div>
     </div>
+    <script>
+    function copyCode() {{
+        var inp = document.getElementById('authCode');
+        var btn = document.getElementById('copyBtn');
+        inp.select();
+        inp.setSelectionRange(0, 99999);
+        var ok = false;
+        try {{ ok = document.execCommand('copy'); }} catch(e) {{}}
+        if (!ok && navigator.clipboard) {{
+            navigator.clipboard.writeText(inp.value).then(function(){{
+                btn.textContent = '✅ Đã copy!';
+                btn.classList.add('copied');
+            }});
+            return;
+        }}
+        if (ok) {{
+            btn.textContent = '✅ Đã copy!';
+            btn.classList.add('copied');
+        }} else {{
+            btn.textContent = '⚠ Nhấn giữ mã phía trên để copy thủ công';
+        }}
+    }}
+    </script>
 </body>
 </html>"""
         return HTMLResponse(content=html)

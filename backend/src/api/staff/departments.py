@@ -29,20 +29,27 @@ async def get_department_queue(
 ):
     query = (
         select(WorkflowStep)
-        .join(Submission, WorkflowStep.submission_id == Submission.id)
+        .outerjoin(Submission, WorkflowStep.submission_id == Submission.id)
+        .outerjoin(Dossier, WorkflowStep.dossier_id == Dossier.id)
         .join(Department, WorkflowStep.department_id == Department.id)
         .where(WorkflowStep.department_id == department_id)
-        .where(Submission.security_classification <= staff.clearance_level)
+        .where(
+            # Clearance check: either via submission or dossier security_classification
+            (Submission.security_classification <= staff.clearance_level)
+            | (Dossier.security_classification <= staff.clearance_level)
+            | (Submission.id.is_(None) & Dossier.id.is_(None))
+        )
     )
 
     if status != "all":
         query = query.where(WorkflowStep.status == status)
     if priority != "all":
-        query = query.where(Submission.priority == priority)
+        query = query.where(
+            (Submission.priority == priority) | (Dossier.priority == priority)
+        )
 
     # Priority ordering: urgent first, then by started_at
     query = query.order_by(
-        Submission.priority.desc(),
         WorkflowStep.started_at.asc().nullsfirst(),
     )
 
@@ -56,6 +63,8 @@ async def get_department_queue(
 
     result = await db.execute(query.options(
         selectinload(WorkflowStep.submission).selectinload(Submission.document_type),
+        selectinload(WorkflowStep.dossier).selectinload(Dossier.case_type),
+        selectinload(WorkflowStep.dossier).selectinload(Dossier.citizen),
     ))
     steps = result.scalars().all()
 
@@ -80,16 +89,38 @@ async def get_department_queue(
             if dos and dos.ai_summary:
                 summary_preview = dos.ai_summary[:100]
 
+        # Determine priority and document/case info from either submission or dossier
+        item_priority = "normal"
+        doc_type_name = ""
+        security_classification = 0
+
+        if step.submission:
+            item_priority = step.submission.priority or "normal"
+            security_classification = step.submission.security_classification or 0
+            if step.submission.document_type:
+                doc_type_name = step.submission.document_type.name
+        elif step.dossier:
+            item_priority = step.dossier.priority or "normal"
+            security_classification = step.dossier.security_classification or 0
+            doc_type_name = step.dossier.case_type.name if step.dossier.case_type else ""
+
         items.append({
             "workflow_step_id": str(step.id),
             "submission_id": str(step.submission_id) if step.submission_id else None,
             "dossier_id": str(step.dossier_id) if step.dossier_id else None,
-            "document_type_name": (
-                step.submission.document_type.name
-                if step.submission and step.submission.document_type
+            "document_type_name": doc_type_name,
+            "citizen_name": (
+                step.dossier.citizen.full_name
+                if step.dossier and step.dossier.citizen
                 else ""
             ),
-            "priority": step.submission.priority if step.submission else "normal",
+            "reference_number": (
+                step.dossier.reference_number
+                if step.dossier
+                else None
+            ),
+            "priority": item_priority,
+            "security_classification": security_classification,
             "started_at": step.started_at.isoformat() if step.started_at else None,
             "expected_complete_by": step.expected_complete_by.isoformat() if step.expected_complete_by else None,
             "is_delayed": is_delayed,

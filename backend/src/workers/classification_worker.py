@@ -199,7 +199,8 @@ def _try_auto_link_citizen(submission: Submission, db: Session) -> None:
 def _try_auto_link_citizen_from_image(dossier: Dossier, image_data: bytes, doc_type: DocumentType, db: Session) -> None:
     """Run OCR + template fill on a CCCD image to extract citizen info and auto-link to dossier."""
     try:
-        ocr_text = ai_client.run_ocr(image_data)
+        ocr_result = ai_client.run_ocr(image_data)
+        ocr_text = ocr_result["text"] if isinstance(ocr_result, dict) else str(ocr_result)
         if not ocr_text or not ocr_text.strip():
             return
 
@@ -627,8 +628,10 @@ def validate_document_slot(self, dossier_document_id: str):
                 if not page.ocr_raw_text:
                     try:
                         img = _oss.download(page.image_oss_key)
-                        page.ocr_raw_text = ai_client.run_ocr(img)
-                        page.ocr_corrected_text = page.ocr_raw_text
+                        ocr_result = ai_client.run_ocr(img)
+                        ocr_text = ocr_result["text"] if isinstance(ocr_result, dict) else str(ocr_result)
+                        page.ocr_raw_text = ocr_text
+                        page.ocr_corrected_text = ocr_text
                     except Exception:
                         logger.warning("OCR failed for page %d of dossier doc %s", page.page_number, doc_uuid)
             db.commit()

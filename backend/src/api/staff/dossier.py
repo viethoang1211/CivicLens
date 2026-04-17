@@ -579,14 +579,9 @@ async def submit_dossier(
     except Exception:
         logger.exception("Dossier summarization enqueue failed")
 
-    return {
-        "id": str(dossier.id),
-        "reference_number": ref_num,
-        "status": dossier.status,
-        "submitted_at": now.isoformat(),
-        "workflow_initiated": routing_result["status"] != "pending_routing",
-        "first_department": routing_result.get("first_department"),
-    }
+    # Reload full dossier with relationships for response
+    dossier = await _load_dossier_or_404(dossier_id, db)
+    return _build_dossier_response(dossier)
 
 
 # ---------------------------------------------------------------------------

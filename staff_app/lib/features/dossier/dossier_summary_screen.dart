@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_dart/shared_dart.dart';
 import '../../core/widgets/ai_validation_badge.dart';
@@ -84,6 +85,24 @@ class _DossierSummaryScreenState extends State<DossierSummaryScreen> {
     try {
       final result = await widget.dossierApi.submitDossier(widget.dossier.id);
       if (mounted) setState(() => _submittedDossier = result);
+    } on DioException catch (e) {
+      if (mounted) {
+        String msg = 'Lỗi không xác định';
+        final data = e.response?.data;
+        if (data is Map) {
+          final detail = data['detail'];
+          if (detail is Map && detail['error'] == 'dossier_incomplete') {
+            msg = 'Hồ sơ chưa đầy đủ — vui lòng bổ sung tài liệu bắt buộc';
+          } else if (detail == 'already_submitted') {
+            msg = 'Hồ sơ đã được nộp trước đó';
+          } else {
+            msg = detail?.toString() ?? 'Lỗi ${e.response?.statusCode}';
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

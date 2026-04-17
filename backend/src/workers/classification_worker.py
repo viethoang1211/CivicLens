@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import uuid
 
 from sqlalchemy import create_engine, select
@@ -138,7 +139,18 @@ def _try_auto_link_citizen(submission: Submission, db: Session) -> None:
     if not isinstance(submission.template_data, dict):
         return
 
+    # Look for CCCD number in order of preference: so_cccd, then any cccd_* field
     so_cccd = submission.template_data.get("so_cccd")
+    if not so_cccd or not isinstance(so_cccd, str) or not so_cccd.strip():
+        # Try other known CCCD field names (e.g. cccd_me from birth registration form)
+        for key in ("cccd_me", "cccd_cha", "id_number"):
+            val = submission.template_data.get(key)
+            if val and isinstance(val, str) and val.strip():
+                so_cccd = val.strip()
+                # Mirror into so_cccd for consistent downstream access
+                submission.template_data["so_cccd"] = so_cccd
+                break
+
     if not so_cccd or not isinstance(so_cccd, str):
         return
 
@@ -151,8 +163,17 @@ def _try_auto_link_citizen(submission: Submission, db: Session) -> None:
     ).scalar_one_or_none()
 
     if citizen is None:
-        # Auto-create citizen from extracted data
-        ho_ten = submission.template_data.get("ho_ten", "").strip() or f"Công dân {so_cccd}"
+        # Try various name fields in priority order:
+        # _cccd_ho_ten = extracted from CCCD page directly (most reliable)
+        # ho_ten = CCCD main doc field
+        # nguoi_di_dang_ky / ho_ten_me = birth registration form submitter
+        ho_ten = (
+            submission.template_data.get("_cccd_ho_ten", "").strip()
+            or submission.template_data.get("ho_ten", "").strip()
+            or submission.template_data.get("nguoi_di_dang_ky", "").strip()
+            or submission.template_data.get("ho_ten_me", "").strip()
+            or f"Công dân {so_cccd}"
+        )
         citizen = Citizen(
             vneid_subject_id=f"auto_{so_cccd}",
             full_name=ho_ten,
@@ -218,6 +239,72 @@ def _try_auto_link_citizen_from_image(dossier: Dossier, image_data: bytes, doc_t
         logger.exception("Failed to auto-link citizen from CCCD image for dossier %s", dossier.id)
 
 
+# ── Smart CCCD detection ─────────────────────────────────────────
+
+# Vietnamese CCCD has distinctive keywords on the card
+_CCCD_KEYWORDS = [
+    "căn cước công dân",
+    "citizen identity card",
+    "can cuoc cong dan",
+    "số / no",
+    "họ và tên / full name",
+    "date of birth",
+    "giới tính / sex",
+    "quốc tịch / nationality",
+    "quê quán / place of origin",
+    "nơi thường trú / place of residence",
+]
+
+# Province codes: 001-096 (valid Vietnamese province codes)
+# 4th digit encodes gender + century: 0/1 = male 1900s/2000s, 2/3 = female 1900s/2000s
+_CCCD_NUMBER_RE = re.compile(r"\b(0[0-9]{2}[0-3]\d{8})\b")
+
+
+def _validate_cccd_number(number: str) -> bool:
+    """Validate Vietnamese CCCD number format (12 digits with province + gender/century encoding)."""
+    if not number or len(number) != 12 or not number.isdigit():
+        return False
+    province = int(number[:3])
+    if province < 1 or province > 96:
+        return False
+    gender_century = int(number[3])
+    if gender_century > 3:
+        return False
+    return True
+
+
+def _detect_cccd_page(pages: list[ScannedPage]) -> tuple[ScannedPage | None, str | None]:
+    """Detect which page is a CCCD by analyzing OCR text for distinctive keywords.
+
+    Returns (cccd_page, cccd_number) or (None, None) if no CCCD found.
+    """
+    for page in pages:
+        ocr_text = (page.ocr_corrected_text or page.ocr_raw_text or "").lower()
+        if not ocr_text.strip():
+            continue
+
+        # Count how many CCCD keywords appear in this page's text
+        keyword_hits = sum(1 for kw in _CCCD_KEYWORDS if kw in ocr_text)
+
+        if keyword_hits >= 3:
+            # This page is almost certainly a CCCD — extract the number
+            original_text = page.ocr_corrected_text or page.ocr_raw_text or ""
+            matches = _CCCD_NUMBER_RE.findall(original_text)
+            for candidate in matches:
+                if _validate_cccd_number(candidate):
+                    logger.info(
+                        "CCCD detected on page %d (keywords=%d, number=%s)",
+                        page.page_number, keyword_hits, candidate,
+                    )
+                    return page, candidate
+
+            # Keywords found but no valid number — still flag as CCCD page
+            logger.info("CCCD page detected (keywords=%d) but no valid number extracted", keyword_hits)
+            return page, None
+
+    return None, None
+
+
 @celery_app.task(name="classification.run", bind=True, max_retries=3)
 def run_classification(self, submission_id: str):
     """Dual-path ensemble classification: Vision + Text models cross-validate.
@@ -279,10 +366,21 @@ def run_classification(self, submission_id: str):
             logger.exception("Text classification failed for %s", submission_id)
 
         # ── Path 2: Vision-based classification ──────────────────
-        # For multi-page: classify from the LAST page (most likely the main document,
-        # not the CCCD which is typically scanned first)
+        # For multi-page: skip the CCCD page and use the main document page.
+        # Use _detect_cccd_page to find which page is the ID card, then pick any other page.
         vision_result = None
-        first_page = pages[-1] if len(pages) > 1 else (pages[0] if pages else None)
+        if len(pages) > 1:
+            cccd_page, _ = _detect_cccd_page(pages)
+            non_cccd_pages = [p for p in pages if cccd_page is None or p.id != cccd_page.id]
+            vision_page = non_cccd_pages[0] if non_cccd_pages else pages[-1]
+            logger.info(
+                "Multi-page %s: using page %d for vision (CCCD page: %s)",
+                submission_id, vision_page.page_number,
+                cccd_page.page_number if cccd_page else "not detected",
+            )
+        else:
+            vision_page = pages[0] if pages else None
+        first_page = vision_page
         if first_page and first_page.image_oss_key:
             try:
                 from src.services.oss_client import oss_client
@@ -318,11 +416,28 @@ def run_classification(self, submission_id: str):
             return  # Both paths failed; leave in pending_classification
 
         # Match document type by code
+        valid_codes = {dt.code for dt in doc_types}
         matched_type = None
         for dt in doc_types:
             if dt.code == classification.get("document_type_code"):
                 matched_type = dt
                 break
+
+        # Fallback: if ensemble result code not in DB (AI hallucinated a code),
+        # try the text-only result which is more constrained to valid codes.
+        if matched_type is None and text_result:
+            text_code = text_result.get("document_type_code")
+            if text_code and text_code in valid_codes:
+                logger.warning(
+                    "Ensemble code '%s' not in DB for %s — falling back to text result '%s'",
+                    classification.get("document_type_code"), submission_id, text_code,
+                )
+                classification = text_result
+                classification["method"] = "text_only_fallback"
+                for dt in doc_types:
+                    if dt.code == text_code:
+                        matched_type = dt
+                        break
 
         submission = db.execute(select(Submission).where(Submission.id == sub_uuid)).scalar_one()
 
@@ -374,18 +489,43 @@ def run_classification(self, submission_id: str):
             submission.template_data = filled if isinstance(filled, dict) else {}
             submission.template_data.update(classification_meta)
 
-            # For multi-page scans: extract CCCD number from combined OCR text so
-            # citizen auto-linking still works even though ID doc was excluded from
-            # classification candidates.
+            # For multi-page scans: if a CCCD page is detected, run fill_template
+            # with the ID_CCCD schema on that page's OCR text to extract full citizen data
+            # (so_cccd, ho_ten, ngay_sinh, etc.) — not just a regex-matched number.
             if len(pages) > 1 and "so_cccd" not in submission.template_data:
-                import re as _re
-                cccd_match = _re.search(r"\b(\d{12})\b", combined_text)
-                if cccd_match:
-                    submission.template_data["so_cccd"] = cccd_match.group(1)
-                    logger.info(
-                        "Multi-page scan %s: extracted CCCD number %s from OCR for citizen linking",
-                        submission_id, cccd_match.group(1)
-                    )
+                cccd_page, _ = _detect_cccd_page(pages)
+                if cccd_page:
+                    try:
+                        cccd_doc_type = db.execute(
+                            select(DocumentType).where(DocumentType.code == "ID_CCCD")
+                        ).scalar_one_or_none()
+                        if cccd_doc_type and cccd_doc_type.template_schema:
+                            cccd_ocr = cccd_page.ocr_corrected_text or cccd_page.ocr_raw_text or ""
+                            cccd_raw = ai_client.fill_template(cccd_ocr, cccd_doc_type.template_schema)
+                            if isinstance(cccd_raw, str):
+                                cleaned = cccd_raw.strip()
+                                if cleaned.startswith("```"):
+                                    cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
+                                cccd_filled = json.loads(cleaned)
+                            else:
+                                cccd_filled = cccd_raw
+                            if isinstance(cccd_filled, dict):
+                                # Merge CCCD fields: so_cccd is the primary key, ho_ten etc. as context
+                                for key in ("so_cccd", "ho_ten", "ngay_sinh", "gioi_tinh", "que_quan", "noi_thuong_tru"):
+                                    val = cccd_filled.get(key)
+                                    if val and str(val).strip():
+                                        submission.template_data[f"_cccd_{key}"] = str(val).strip()
+                                # Promote so_cccd to top-level for citizen linking
+                                so_cccd_val = cccd_filled.get("so_cccd", "").strip() if isinstance(cccd_filled.get("so_cccd"), str) else ""
+                                if so_cccd_val and _validate_cccd_number(so_cccd_val):
+                                    submission.template_data["so_cccd"] = so_cccd_val
+                                    logger.info(
+                                        "Multi-page scan %s: CCCD data extracted via fill_template (so_cccd=%s, ho_ten=%s)",
+                                        submission_id, so_cccd_val, cccd_filled.get("ho_ten", ""),
+                                    )
+                    except Exception:
+                        logger.exception("Failed to fill CCCD template for page %d of submission %s",
+                                         cccd_page.page_number, submission_id)
 
         # Auto-link citizen if CCCD number found in template data
         if submission.citizen_id is None:
@@ -397,8 +537,12 @@ def run_classification(self, submission_id: str):
         # prompt staff to scan a CCCD if missing.
         has_citizen_id = submission.citizen_id is not None
         if not has_citizen_id and isinstance(submission.template_data, dict):
-            so_cccd = submission.template_data.get("so_cccd", "")
-            has_citizen_id = bool(so_cccd and str(so_cccd).strip())
+            # Check so_cccd or any cccd_* field
+            for cccd_key in ("so_cccd", "cccd_me", "cccd_cha", "id_number"):
+                val = submission.template_data.get(cccd_key, "")
+                if val and str(val).strip():
+                    has_citizen_id = True
+                    break
 
         doc_code = matched_type.code if matched_type else None
         is_id_document = doc_code in ("ID_CCCD", "PASSPORT_VN")
@@ -435,8 +579,14 @@ def run_classification(self, submission_id: str):
 def validate_document_slot(self, dossier_document_id: str):
     """Validate whether a DossierDocument matches its expected slot's document type.
 
-    Uses dashscope vision model in binary (match/no-match) mode.
-    Stores result in DossierDocument.ai_match_result as JSONB.
+    Flow:
+    1. Run OCR on all pages (if not already done) and store text — same as quick scan
+    2. Detect CCCD page via keyword matching on OCR text
+    3. If CCCD page found → fill_template with ID_CCCD schema → link citizen to dossier
+    4. Validate the slot using vision AI on first page image
+
+    This mirrors the quick-scan flow: citizen linking happens via stored OCR text,
+    independent of whether the slot type is ID_CCCD.
     """
     doc_uuid = uuid.UUID(dossier_document_id)
 
@@ -448,28 +598,92 @@ def validate_document_slot(self, dossier_document_id: str):
         if doc is None:
             return  # Document was deleted before task ran
 
-        # Get first page image
-        first_page = db.execute(
+        # Get ALL pages for this document (ordered)
+        all_pages = db.execute(
             select(ScannedPage)
             .where(ScannedPage.dossier_document_id == doc_uuid)
             .order_by(ScannedPage.page_number)
-        ).scalars().first()
+        ).scalars().all()
 
-        if first_page is None:
+        if not all_pages:
             return  # No pages uploaded yet
 
-        # Load expected document type prompt
-        if doc.document_type_id is None:
-            return  # No expected type to validate against
+        first_page = all_pages[0]
 
-        doc_type = db.execute(
-            select(DocumentType).where(DocumentType.id == doc.document_type_id)
-        ).scalar_one_or_none()
+        # ── Step 1: Load expected document type (slot is pre-typed in dossier) ─
+        # We need doc_type early to decide whether to run citizen linking.
+        _early_doc_type = None
+        if doc.document_type_id:
+            _early_doc_type = db.execute(
+                select(DocumentType).where(DocumentType.id == doc.document_type_id)
+            ).scalar_one_or_none()
 
+        # ── Step 2: OCR all pages + citizen linking for CCCD slots ───────────
+        # Dossier pages are not pre-OCR'd. Run OCR now to store text for
+        # search indexing. If this slot is ID_CCCD, also extract citizen data.
+        try:
+            from src.services.oss_client import oss_client as _oss
+            for page in all_pages:
+                if not page.ocr_raw_text:
+                    try:
+                        img = _oss.download(page.image_oss_key)
+                        page.ocr_raw_text = ai_client.run_ocr(img)
+                        page.ocr_corrected_text = page.ocr_raw_text
+                    except Exception:
+                        logger.warning("OCR failed for page %d of dossier doc %s", page.page_number, doc_uuid)
+            db.commit()
+        except Exception:
+            logger.exception("OCR pre-run failed for dossier doc %s", doc_uuid)
+
+        # Citizen linking: only when this slot is explicitly for CCCD/ID docs.
+        # The slot's document_type already tells us this — no keyword detection needed.
+        is_id_slot = _early_doc_type and _early_doc_type.code in ("ID_CCCD", "PASSPORT_VN")
+        if is_id_slot and doc.dossier_id:
+            dossier = db.execute(
+                select(Dossier).where(Dossier.id == doc.dossier_id)
+            ).scalar_one_or_none()
+            if dossier and dossier.citizen_id is None and _early_doc_type.template_schema:
+                try:
+                    combined_ocr = "\n".join(
+                        p.ocr_corrected_text or p.ocr_raw_text or ""
+                        for p in all_pages
+                    )
+                    cccd_raw = ai_client.fill_template(combined_ocr, _early_doc_type.template_schema)
+                    if isinstance(cccd_raw, str):
+                        cleaned = cccd_raw.strip()
+                        if cleaned.startswith("```"):
+                            cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
+                        cccd_filled = json.loads(cleaned)
+                    else:
+                        cccd_filled = cccd_raw
+                    if isinstance(cccd_filled, dict):
+                        so_cccd = cccd_filled.get("so_cccd", "").strip() if isinstance(cccd_filled.get("so_cccd"), str) else ""
+                        if so_cccd and _validate_cccd_number(so_cccd):
+                            ho_ten = cccd_filled.get("ho_ten", "").strip() or f"Công dân {so_cccd}"
+                            citizen = db.execute(
+                                select(Citizen).where(Citizen.id_number == so_cccd)
+                            ).scalar_one_or_none()
+                            if citizen is None:
+                                citizen = Citizen(
+                                    vneid_subject_id=f"auto_{so_cccd}",
+                                    full_name=ho_ten,
+                                    id_number=so_cccd,
+                                )
+                                db.add(citizen)
+                                db.flush()
+                                logger.info("Dossier %s: auto-created citizen %s (%s)", dossier.id, so_cccd, ho_ten)
+                            dossier.citizen_id = citizen.id
+                            db.commit()
+                            logger.info("Dossier %s: auto-linked to citizen %s via ID slot OCR", dossier.id, so_cccd)
+                except Exception:
+                    logger.exception("Failed citizen linking for ID slot %s of dossier %s", doc_uuid, doc.dossier_id)
+
+        # ── Step 3: Slot validation via vision AI ────────────────────────────
+        doc_type = _early_doc_type
         if doc_type is None or not doc_type.classification_prompt:
-            return
+            return  # No expected type or prompt to validate against
 
-        # Download image from OSS
+        # Download first page image for vision validation
         try:
             from src.services.oss_client import oss_client as _oss
             image_data = _oss.download(first_page.image_oss_key)
@@ -484,11 +698,3 @@ def validate_document_slot(self, dossier_document_id: str):
 
         doc.ai_match_result = match_result
         db.commit()
-
-        # Auto-link citizen if this is a CCCD document and the dossier has no citizen
-        if doc_type.code == "ID_CCCD" and doc.dossier_id:
-            dossier = db.execute(
-                select(Dossier).where(Dossier.id == doc.dossier_id)
-            ).scalar_one_or_none()
-            if dossier and dossier.citizen_id is None:
-                _try_auto_link_citizen_from_image(dossier, image_data, doc_type, db)

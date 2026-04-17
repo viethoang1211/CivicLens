@@ -229,13 +229,15 @@ Giấy tờ cần chuẩn bị:
    - ✅ Hiện **Kết quả AI**: "Căn cước công dân / CMND" — Độ tin cậy: ~95%
    - Hiện tóm tắt AI: trích xuất **số CCCD 011167000556**, họ tên **GIÀNG THỊ PÀ**, ngày sinh **01/01/1967**
 
+> ℹ️ **Lưu ý**: Hồ sơ CCCD (1 trang) sẽ phân loại là **"Căn cước công dân / CMND"**. Thông tin số CCCD tự động liên kết tài khoản công dân Giàng Thị Pà.
+
 **Giải thích**: _"AI sử dụng model Qwen-VL-OCR để đọc trực tiếp ảnh chụp CCCD thật — không cần scan hay PDF. Thông tin quan trọng được trích xuất tự động."_
 
 ### Bước 3: NV xác nhận phân loại CCCD
 
 - **Nếu AI đúng** (Căn cước công dân): Nhấn **"Xác nhận phân loại"**
 - **Nếu AI sai**: Chọn loại đúng trong **"Gợi ý khác"**
-- ✅ Hồ sơ CCCD chuyển trạng thái "classified"
+- ✅ Hồ sơ CCCD chuyển trạng thái "classified" — route tới hàng đợi RECEPTION
 
 ### Bước 4: Quét tờ khai khai sinh (lặp lại Quick Scan)
 
@@ -243,6 +245,9 @@ Giấy tờ cần chuẩn bị:
 2. Chụp **Tờ khai đăng ký khai sinh** (bản in A4)
 3. Nhấn **"Hoàn tất"** → theo dõi AI xử lý
 4. AI nhận diện: **"Tờ khai đăng ký khai sinh"** — Độ tin cậy: ~90%
+
+> ✅ **Điểm quan trọng**: Khi quét **nhiều trang** (CCCD + Tờ khai), AI ưu tiên phân loại theo **văn bản chính** — kết quả sẽ là **"Tờ khai đăng ký khai sinh"** (không phải CCCD). CCCD chỉ được dùng để trích xuất số CCCD liên kết công dân.
+
 5. Tóm tắt AI: trích xuất tên trẻ **SÙNG THỊ MỶ**, mẹ **GIÀNG THỊ PÀ**, ngày sinh **10/03/2026**
 6. Nhấn **"Xác nhận phân loại"**
 
@@ -251,8 +256,21 @@ Giấy tờ cần chuẩn bị:
 ### Bước 5: Kiểm tra kết quả
 
 1. Mỗi lần quét tạo 1 hồ sơ riêng với mã tham chiếu (VD: `HS-20260416-00003`)
-2. Hồ sơ được route đến phòng Tiếp nhận (RECEPTION)
-3. Nếu CCCD công dân trùng khớp → tự động liên kết với tài khoản công dân
+2. Hồ sơ được route đến phòng Tiếp nhận (RECEPTION) — **NV001** thấy trong hàng đợi
+3. Sau khi NV001 phê duyệt → route tiếp tới phòng Tư pháp — **NV003 (Lê Văn Cường)** xử lý bước tiếp theo
+4. Nếu CCCD công dân trùng khớp → tự động liên kết với tài khoản công dân
+
+### Bước 6: Công dân xem hồ sơ (Citizen App — Giàng Thị Pà)
+
+1. Mở **Citizen App**
+2. Nhấn **"Đăng nhập bằng VNeID"** → chọn **"Giàng Thị Pà — CCCD: 011167000556"**
+3. Xác thực OAuth → nhấn "Copy mã" → dán vào app → **"Xác thực"**
+4. ✅ Màn hình chủ: "Xin chào, Giàng Thị Pà"
+5. Nhấn **"Hồ sơ Quick Scan"** ← nút mới, hiện badge số hồ sơ
+6. ✅ Thấy hồ sơ "Tờ khai đăng ký khai sinh" — trạng thái **"Đang xử lý"**
+7. Thấy phòng ban hiện tại đang xử lý
+
+> 💡 **Lưu ý**: "Hồ sơ của tôi" hiển thị hồ sơ case-based; **"Hồ sơ Quick Scan"** hiển thị hồ sơ từ luồng quét nhanh.
 
 ### Lưu ý khi demo Quick Scan
 

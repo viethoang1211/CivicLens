@@ -5,6 +5,7 @@ import 'package:shared_dart/shared_dart.dart';
 import 'features/auth/vneid_auth_screen.dart';
 import 'features/submissions/dossier_list_screen.dart';
 import 'features/submissions/dossier_lookup_screen.dart';
+import 'features/submissions/submissions_list_screen.dart';
 import 'features/notifications/notifications_screen.dart';
 
 /// Single source of truth for backend URL across entire citizen app.
@@ -99,6 +100,7 @@ class CitizenHomeScreen extends StatefulWidget {
 
 class _CitizenHomeScreenState extends State<CitizenHomeScreen> {
   int _dossierCount = 0;
+  int _submissionCount = 0;
   int _unreadCount = 0;
 
   late final CitizenDossierApi _dossierApi = CitizenDossierApi(widget.apiClient);
@@ -114,6 +116,11 @@ class _CitizenHomeScreenState extends State<CitizenHomeScreen> {
     try {
       final dossiers = await _dossierApi.listMyDossiers(pageSize: 1);
       if (mounted) setState(() => _dossierCount = dossiers.length);
+    } catch (_) {}
+    try {
+      final resp = await _citizenApi.listSubmissions(limit: 100);
+      final items = resp['items'] as List? ?? [];
+      if (mounted) setState(() => _submissionCount = items.length);
     } catch (_) {}
     try {
       final resp = await _citizenApi.listNotifications(perPage: 1);
@@ -169,6 +176,20 @@ class _CitizenHomeScreenState extends State<CitizenHomeScreen> {
                 MaterialPageRoute(
                   builder: (_) => DossierListScreen(
                     citizenDossierApi: _dossierApi,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _MenuCard(
+              icon: Icons.document_scanner,
+              title: 'Hồ sơ Quick Scan',
+              subtitle: 'Xem hồ sơ từ quét nhanh tại quầy',
+              badge: _submissionCount > 0 ? '$_submissionCount' : null,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SubmissionsListScreen(
+                    citizenApi: _citizenApi,
                   ),
                 ),
               ),

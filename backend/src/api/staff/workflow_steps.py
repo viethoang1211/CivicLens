@@ -37,12 +37,22 @@ async def get_step_detail(
         raise HTTPException(404, "Workflow step not found")
 
     # Load submission with pages
+    from src.models.document_type import DocumentType
     sub_result = await db.execute(
         select(Submission)
         .options(selectinload(Submission.workflow_steps))
         .where(Submission.id == step.submission_id)
     )
     submission = sub_result.scalar_one()
+
+    # Load document type name
+    doc_type_name = None
+    if submission.document_type_id:
+        dt_result = await db.execute(
+            select(DocumentType).where(DocumentType.id == submission.document_type_id)
+        )
+        dt = dt_result.scalar_one_or_none()
+        doc_type_name = dt.name if dt else None
 
     await check_submission_clearance(submission.id, staff, db, action="review", submission=submission)
 
@@ -97,6 +107,7 @@ async def get_step_detail(
             "id": str(submission.id),
             "status": submission.status,
             "security_classification": submission.security_classification,
+            "document_type_name": doc_type_name,
             "template_data": submission.template_data,
         },
         "pages": page_list,
@@ -126,7 +137,7 @@ async def complete_step(
     if not step:
         raise HTTPException(404, "Workflow step not found")
 
-    staff_member = await validate_reviewer(db, step, staff.id)
+    staff_member = await validate_reviewer(db, step, staff.staff_id)
     return await process_review(db, step, staff_member, body.result, body.comment, body.target_citizen)
 
 
@@ -154,7 +165,7 @@ async def create_step_consultation(
     if step.status != "active":
         raise HTTPException(400, "Step is not active")
 
-    staff_member = await validate_reviewer(db, step, staff.id)
+    staff_member = await validate_reviewer(db, step, staff.staff_id)
 
     # Verify target department exists
     dept_result = await db.execute(

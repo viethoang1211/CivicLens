@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_dart/shared_dart.dart';
 
+import 'document_review_screen.dart';
+
 class DepartmentQueueScreen extends StatefulWidget {
   final String departmentId;
   final ApiClient apiClient;
@@ -158,9 +160,13 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
                     )
                   : null,
               onTap: () {
-                Navigator.of(context).pushNamed(
-                  '/review',
-                  arguments: item['workflow_step_id'],
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => DocumentReviewScreen(
+                      apiClient: widget.apiClient,
+                      stepId: item['workflow_step_id'] as String,
+                    ),
+                  ),
                 );
               },
             ),

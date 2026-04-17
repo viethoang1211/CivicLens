@@ -182,7 +182,7 @@ class _StaffAuthScreenState extends State<StaffAuthScreen> {
                 ),
                 const SizedBox(height: 48),
                 Text(
-                  'v0.4.0 • ${widget.apiBaseUrl}',
+                  'v0.4.0',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: cs.onSurface.withAlpha(100),
                   ),

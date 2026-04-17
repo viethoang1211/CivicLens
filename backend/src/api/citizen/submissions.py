@@ -8,11 +8,20 @@ from sqlalchemy.orm import selectinload
 
 from src.dependencies import get_db
 from src.models.department import Department
+from src.models.document_type import DocumentType
 from src.models.step_annotation import StepAnnotation
 from src.models.submission import Submission
 from src.security.auth import CitizenIdentity, get_current_citizen
 
 router = APIRouter()
+
+
+async def _doc_type_name(db: AsyncSession, doc_type_id) -> str:
+    if not doc_type_id:
+        return ""
+    dt = await db.execute(select(DocumentType).where(DocumentType.id == doc_type_id))
+    dt = dt.scalar_one_or_none()
+    return dt.name if dt else ""
 
 
 @router.get("")
@@ -63,7 +72,7 @@ async def list_submissions(
 
         items.append({
             "id": str(sub.id),
-            "document_type_name": "",  # Would join doc type
+            "document_type_name": await _doc_type_name(db, sub.document_type_id),
             "status": sub.status,
             "priority": sub.priority,
             "submitted_at": sub.submitted_at.isoformat(),
@@ -134,7 +143,7 @@ async def get_submission_detail(
 
     return {
         "id": str(submission.id),
-        "document_type_name": "",
+        "document_type_name": await _doc_type_name(db, submission.document_type_id),
         "status": submission.status,
         "priority": submission.priority,
         "submitted_at": submission.submitted_at.isoformat(),

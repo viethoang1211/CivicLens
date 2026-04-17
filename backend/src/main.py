@@ -13,6 +13,7 @@ from src.api.citizen import submissions as citizen_submissions
 from src.api.staff import admin_case_types as staff_admin_case_types
 from src.api.staff import admin_document_types, admin_routing_rules
 from src.api.staff import analytics as staff_analytics
+from src.api.staff import audit as staff_audit
 from src.api.staff import auth as staff_auth
 from src.api.staff import classification as staff_classification
 from src.api.staff import departments as staff_departments
@@ -56,6 +57,7 @@ app.include_router(staff_admin_case_types.router)
 app.include_router(staff_dossier.router)
 app.include_router(staff_search.router, prefix="/v1/staff/search", tags=["staff-search"])
 app.include_router(staff_analytics.router, prefix="/v1/staff/analytics", tags=["staff-analytics"])
+app.include_router(staff_audit.router, prefix="/v1/staff/audit", tags=["staff-audit"])
 
 # Citizen routes
 app.include_router(citizen_auth.router, prefix="/v1/citizen/auth", tags=["citizen-auth"])

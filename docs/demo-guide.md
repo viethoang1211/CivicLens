@@ -313,7 +313,57 @@ Giấy tờ cần chuẩn bị:
 
 1. Tại bước duyệt, NV chọn **"Từ chối"** thay vì "Phê duyệt"
 2. Ghi lý do: _"Thiếu giấy tờ bổ sung"_
-3. Công dân mở app → trạng thái **"Bị từ chối"** + lý do
+3. Công dân mở app → trạng thái **"Bị từ chối"** + lý do hiển thị trong phần "Ghi chú từ phòng ban"
+
+### Demo mức độ bảo mật (Security Classification)
+
+> Demo hệ thống kiểm soát truy cập dựa trên mức bảo mật (ABAC — Attribute-Based Access Control).
+
+**Bối cảnh**: Mỗi hồ sơ khi tạo được gán mức bảo mật (0–3). Nhân viên chỉ xem được hồ sơ có mức ≤ clearance level của mình.
+
+| Mức | Nhãn | Ý nghĩa |
+|-----|------|---------|
+| 0 | Công khai | Mọi nhân viên đều xem được |
+| 1 | Mật | Chỉ NV có clearance ≥ 1 |
+| 2 | Tối mật | Chỉ NV có clearance ≥ 2 |
+| 3 | Tuyệt mật | Chỉ NV có clearance ≥ 3 (Lãnh đạo) |
+
+**Các bước demo:**
+
+1. Đăng nhập **NV001** (Tiếp nhận, clearance = 0)
+2. Nhấn **"Quét nhanh"** → ở bước chọn mức bảo mật:
+   - Chọn **"Công khai"** (mức 0) → Tạo thành công
+3. Quay lại → **"Quét nhanh"** lần nữa:
+   - Chọn **"Mật"** (mức 1) → ⚠️ Cảnh báo: _"Mức bảo mật vượt quyền truy cập của bạn"_
+   - NV001 (clearance=0) không thể tạo hồ sơ mức 1
+4. Đăng nhập **NV007** (Lãnh đạo, clearance = 3):
+   - Tạo hồ sơ mức **"Tối mật"** → Thành công
+   - Hồ sơ này chỉ hiện trong hàng đợi của NV có clearance ≥ 2
+
+**Giải thích**: _"Hệ thống kiểm soát truy cập theo thuộc tính (ABAC) đảm bảo hồ sơ nhạy cảm chỉ được truy cập bởi nhân viên có đủ thẩm quyền. Mọi truy cập (kể cả bị từ chối) đều được ghi audit log."_
+
+### Demo Audit Trail (Nhật ký kiểm toán)
+
+> Demo khả năng truy vết toàn bộ vòng đời hồ sơ.
+
+**Bối cảnh**: Mọi thao tác trên hồ sơ (quét, phân loại, duyệt, từ chối, sửa OCR) đều được ghi lại trong audit log với: ai làm, làm gì, lúc nào.
+
+**Các bước demo:**
+
+1. Mở Swagger: http://43.98.196.158/docs
+2. Đăng nhập lấy token (dùng NV007 — manager)
+3. Gọi `GET /v1/staff/audit/submissions/{submission_id}/trail`
+4. ✅ Hiển thị timeline đầy đủ:
+   - `scan` — NV001 quét tài liệu lúc 14:30
+   - `finalize_scan` — NV001 hoàn tất lúc 14:31
+   - `confirm_classification` — NV001 xác nhận phân loại lúc 14:32
+   - `review_approved` — NV004 phê duyệt (phòng Tài chính) lúc 14:45
+   - `annotation_approved` — NV004 ghi chú "Vốn điều lệ hợp lệ"
+   - `review_approved` — NV003 phê duyệt (phòng Tư pháp) lúc 15:00
+
+5. Gọi `GET /v1/staff/audit/logs` để xem toàn bộ nhật ký hệ thống
+
+**Giải thích**: _"Toàn bộ thao tác được ghi nhật ký kiểm toán (audit trail), đảm bảo truy vết được ai đã xử lý hồ sơ, quyết định gì, lúc nào. Đây là yêu cầu bắt buộc cho hệ thống hành chính công — phục vụ thanh tra, kiểm toán, và giải quyết khiếu nại."_
 
 ---
 

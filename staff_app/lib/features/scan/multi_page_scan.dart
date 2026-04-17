@@ -91,30 +91,50 @@ class _MultiPageScanState extends State<MultiPageScan> {
                     },
                   ),
           ),
-          if (_pages.isNotEmpty)
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton.icon(
-                    onPressed: _finalize,
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: Text(
-                      'Hoàn tất (${_pages.length} trang)',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: _pages.isEmpty
+                  ? SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton.icon(
+                        onPressed: _addPage,
+                        icon: const Icon(Icons.add_a_photo),
+                        label: const Text('Chụp trang đầu tiên', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 52,
+                            child: OutlinedButton.icon(
+                              onPressed: _addPage,
+                              icon: const Icon(Icons.add_a_photo),
+                              label: const Text('Chụp thêm', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SizedBox(
+                            height: 52,
+                            child: FilledButton.icon(
+                              onPressed: _finalize,
+                              icon: const Icon(Icons.check_circle_outline),
+                              label: Text(
+                                'Hoàn tất (${_pages.length})',
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-              ),
             ),
+          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addPage,
-        icon: const Icon(Icons.add_a_photo),
-        label: const Text('Chụp thêm'),
       ),
     );
   }

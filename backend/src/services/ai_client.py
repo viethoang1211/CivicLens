@@ -129,15 +129,30 @@ class AIClient:
         return content[0]["text"] if isinstance(content, list) else content
 
     def fill_template(self, ocr_text: str, template_schema: dict) -> dict:
-        fields = ", ".join(template_schema.keys()) if isinstance(template_schema, dict) else str(template_schema)
-        prompt = f"""Extract the following fields from the document text and return as JSON.
+        # Build field list from JSON Schema properties (with titles for better extraction)
+        properties = template_schema.get("properties", {}) if isinstance(template_schema, dict) else {}
+        if properties:
+            field_descriptions = []
+            for key, spec in properties.items():
+                title = spec.get("title", key) if isinstance(spec, dict) else key
+                field_descriptions.append(f"- {key}: {title}")
+            fields_text = "\n".join(field_descriptions)
+        else:
+            # Fallback: treat schema as flat key list
+            fields_text = ", ".join(
+                k for k in (template_schema.keys() if isinstance(template_schema, dict) else [])
+                if not k.startswith("_") and k not in ("type", "required", "properties", "$schema", "$defs")
+            )
 
-Fields to extract: {fields}
+        prompt = f"""Trích xuất các trường sau từ văn bản tài liệu và trả về dạng JSON.
 
-Document text:
+Các trường cần trích xuất:
+{fields_text}
+
+Văn bản tài liệu:
 {ocr_text[:8000]}
 
-Return a JSON object with the field names as keys and extracted values. Use null for fields not found."""
+Trả về một JSON object với tên trường (key) giống chính xác tên ở trên và giá trị được trích xuất. Dùng null cho trường không tìm thấy. CHỈ trả về JSON object, KHÔNG kèm giải thích."""
 
         response = dashscope.Generation.call(
             model=self.CLASSIFICATION_MODEL,

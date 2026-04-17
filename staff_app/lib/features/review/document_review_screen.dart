@@ -8,15 +8,23 @@ const _hiddenKeys = {'type', 'required', 'properties', '\$schema', '\$defs'};
 // Vietnamese display names for common OCR-extracted fields
 const _fieldLabels = {
   'ho_ten': 'Họ và tên',
+  'full_name': 'Họ và tên',
   'so_cccd': 'Số CCCD/CMND',
+  'id_number': 'Số CCCD/CMND',
   'ngay_sinh': 'Ngày sinh',
+  'date_of_birth': 'Ngày sinh',
   'gioi_tinh': 'Giới tính',
+  'sex': 'Giới tính',
   'quoc_tich': 'Quốc tịch',
+  'nationality': 'Quốc tịch',
   'que_quan': 'Quê quán',
+  'place_of_origin': 'Quê quán',
   'noi_thuong_tru': 'Nơi thường trú',
+  'place_of_residence': 'Nơi thường trú',
   'ngay_cap': 'Ngày cấp',
   'noi_cap': 'Nơi cấp',
   'ngay_het_han': 'Ngày hết hạn',
+  'date_of_expiry': 'Ngày hết hạn',
   'ho_ten_cha': 'Họ tên cha',
   'ho_ten_me': 'Họ tên mẹ',
   'ten_tre': 'Tên trẻ',
@@ -58,11 +66,61 @@ class _DocumentReviewScreenState extends State<DocumentReviewScreen> {
   bool _loading = true;
   String? _error;
   bool _submitting = false;
+  bool _editingTemplate = false;
+  Map<String, TextEditingController> _editControllers = {};
 
   @override
   void initState() {
     super.initState();
     _loadDetail();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _editControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _startEditing(List<MapEntry<String, dynamic>> fields) {
+    _editControllers = {
+      for (final e in fields) e.key: TextEditingController(text: '${e.value}'),
+    };
+    setState(() => _editingTemplate = true);
+  }
+
+  Future<void> _saveTemplateEdits() async {
+    final submissionId = (_data?['submission'] as Map?)?['id'] as String?;
+    if (submissionId == null) return;
+
+    final changes = <String, dynamic>{};
+    for (final entry in _editControllers.entries) {
+      changes[entry.key] = entry.value.text;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      await widget.apiClient.patch(
+        '/v1/staff/submissions/$submissionId/template-data',
+        data: {'template_data': changes},
+      );
+      setState(() => _editingTemplate = false);
+      await _loadDetail(); // Reload fresh data
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã lưu chỉnh sửa'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Future<void> _loadDetail() async {
@@ -214,13 +272,50 @@ class _DocumentReviewScreenState extends State<DocumentReviewScreen> {
     final annotations = (data['annotations_by_department'] as Map?) ?? {};
     final submission = data['submission'] as Map<String, dynamic>? ?? {};
     final templateData = submission['template_data'] as Map<String, dynamic>?;
+    final templateSchema = submission['template_schema'] as Map<String, dynamic>?;
     final stepStatus = step['status'] as String? ?? '';
     final isActive = stepStatus == 'active';
 
-    // Only show real extracted fields — filter out schema structure and internal _ metadata
-    final displayFields = templateData?.entries
-        .where((e) => _shouldShowKey(e.key) && e.value != null && e.value.toString().trim().isNotEmpty)
-        .toList() ?? [];
+    // Build display fields using template_schema from document type (authoritative source)
+    final displayFields = <MapEntry<String, dynamic>>[];
+    final schemaTitles = <String, String>{};
+    if (templateData != null) {
+      // Collect flat extracted values
+      final flatValues = <String, dynamic>{};
+      for (final e in templateData.entries) {
+        if (_shouldShowKey(e.key) && e.value != null && e.value is! Map && e.value is! List) {
+          flatValues[e.key] = e.value;
+        }
+      }
+
+      // Use template_schema.properties from document_type (preferred),
+      // fall back to template_data.properties (legacy)
+      final schemaProps = (templateSchema?['properties'] as Map<String, dynamic>?)
+          ?? (templateData['properties'] as Map<String, dynamic>?);
+
+      if (schemaProps != null) {
+        for (final entry in schemaProps.entries) {
+          final key = entry.key;
+          final spec = entry.value;
+          if (spec is Map && spec['title'] != null) {
+            schemaTitles[key] = spec['title'] as String;
+          }
+          // Value from extracted data
+          final value = flatValues.remove(key) ?? templateData[key];
+          displayFields.add(MapEntry(key, (value is Map || value is List) ? '' : (value ?? '')));
+        }
+      }
+
+      // Add remaining flat values not in schema
+      for (final e in flatValues.entries) {
+        if (e.value.toString().trim().isNotEmpty) {
+          displayFields.add(e);
+        }
+      }
+    }
+
+    // Label resolver: schema title > static labels > formatted key
+    String labelFor(String key) => schemaTitles[key] ?? _fieldLabels[key] ?? key.replaceAll('_', ' ');
 
     return Stack(children: [
       SingleChildScrollView(
@@ -232,7 +327,29 @@ class _DocumentReviewScreenState extends State<DocumentReviewScreen> {
           const SizedBox(height: 16),
 
           // ── Extracted OCR fields ─────────────────────────────
-          _sectionTitle('Thông tin trích xuất từ OCR'),
+          Row(
+            children: [
+              Expanded(child: _sectionTitle('Thông tin trích xuất từ OCR')),
+              if (isActive && displayFields.isNotEmpty && !_editingTemplate)
+                TextButton.icon(
+                  onPressed: () => _startEditing(displayFields),
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Chỉnh sửa'),
+                ),
+              if (_editingTemplate) ...[
+                TextButton(
+                  onPressed: () => setState(() => _editingTemplate = false),
+                  child: const Text('Hủy'),
+                ),
+                const SizedBox(width: 4),
+                FilledButton.icon(
+                  onPressed: _submitting ? null : _saveTemplateEdits,
+                  icon: const Icon(Icons.save, size: 16),
+                  label: const Text('Lưu'),
+                ),
+              ],
+            ],
+          ),
           const SizedBox(height: 8),
           Card(
             child: Padding(
@@ -244,10 +361,30 @@ class _DocumentReviewScreenState extends State<DocumentReviewScreen> {
                       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         SizedBox(
                           width: 140,
-                          child: Text(_labelFor(e.key),
+                          child: Text(labelFor(e.key),
                               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black87)),
                         ),
-                        Expanded(child: Text('${e.value}', style: const TextStyle(fontSize: 13))),
+                        Expanded(
+                          child: _editingTemplate && _editControllers.containsKey(e.key)
+                              ? TextField(
+                                  controller: _editControllers[e.key],
+                                  style: const TextStyle(fontSize: 13),
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    hintText: 'Nhập ${labelFor(e.key).toLowerCase()}',
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+                                  ),
+                                )
+                              : Text(
+                                  e.value.toString().isEmpty ? 'Chưa có' : '${e.value}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: e.value.toString().isEmpty ? Colors.grey : null,
+                                    fontStyle: e.value.toString().isEmpty ? FontStyle.italic : null,
+                                  ),
+                                ),
+                        ),
                       ]),
                     )).toList()),
             ),
@@ -282,8 +419,13 @@ class _DocumentReviewScreenState extends State<DocumentReviewScreen> {
                       if (page['ocr_confidence'] != null) ...[
                         const SizedBox(width: 8),
                         Chip(
-                          label: Text('OCR ${((page['ocr_confidence'] as num) * 100).toStringAsFixed(0)}%',
+                          label: Text('Độ tin cậy: ${((page['ocr_confidence'] as num) * 100).toStringAsFixed(0)}%',
                               style: const TextStyle(fontSize: 11)),
+                          avatar: Icon(
+                            ((page['ocr_confidence'] as num) >= 0.8) ? Icons.check_circle : Icons.warning_amber,
+                            size: 14,
+                            color: ((page['ocr_confidence'] as num) >= 0.8) ? Colors.green : Colors.orange,
+                          ),
                           padding: EdgeInsets.zero, visualDensity: VisualDensity.compact,
                         ),
                       ],

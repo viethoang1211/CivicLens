@@ -52,6 +52,16 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
     }
   }
 
+  String _formatDateTime(String? iso) {
+    if (iso == null) return 'N/A';
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return iso;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -96,69 +106,28 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
     return RefreshIndicator(
       onRefresh: _loadQueue,
       child: ListView.builder(
+        padding: const EdgeInsets.all(12),
         itemCount: _items.length,
         itemBuilder: (context, index) {
           final item = _items[index];
           final isDelayed = item['is_delayed'] ?? false;
           final isUrgent = item['priority'] == 'urgent';
+          final docTypeName = (item['document_type_name'] as String?)?.isNotEmpty == true
+              ? item['document_type_name'] as String
+              : 'Hồ sơ';
+          final startedAt = _formatDateTime(item['started_at'] as String?);
 
           return Card(
-            color: isDelayed ? Colors.red.shade50 : null,
-            child: ListTile(
-              leading: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (isUrgent) const Icon(Icons.priority_high, color: Colors.red),
-                  if (isDelayed) const Icon(Icons.warning, color: Colors.orange, size: 16),
-                ],
-              ),
-              title: Text(item['document_type_name'] ?? 'Document'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Bắt đầu: ${item['started_at'] ?? 'N/A'}'),
-                  if (item['summary_preview'] != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                          margin: const EdgeInsets.only(right: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.purple.shade50,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'AI tạo',
-                            style: TextStyle(fontSize: 10, color: Colors.purple),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            item['summary_preview'],
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, color: Colors.black54),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Đang tạo tóm tắt...',
-                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
-                    ),
-                  ],
-                ],
-              ),
-              isThreeLine: true,
-              trailing: isDelayed
-                  ? const Chip(
-                      label: Text('Trễ hạn', style: TextStyle(color: Colors.white, fontSize: 11)),
-                      backgroundColor: Colors.red,
-                    )
-                  : null,
+            margin: const EdgeInsets.only(bottom: 10),
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: isDelayed
+                  ? const BorderSide(color: Colors.red, width: 1)
+                  : BorderSide.none,
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -169,6 +138,71 @@ class _DepartmentQueueScreenState extends State<DepartmentQueueScreen> {
                   ),
                 );
               },
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title row
+                    Row(
+                      children: [
+                        Icon(Icons.description_outlined, size: 20, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            docTypeName,
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                          ),
+                        ),
+                        if (isUrgent)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Icon(Icons.priority_high, size: 14, color: Colors.red.shade700),
+                              const SizedBox(width: 2),
+                              Text('Khẩn', style: TextStyle(fontSize: 11, color: Colors.red.shade700, fontWeight: FontWeight.w600)),
+                            ]),
+                          ),
+                        if (isDelayed)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text('Trễ hạn', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Time row
+                    Row(
+                      children: [
+                        Icon(Icons.access_time, size: 14, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        Text(
+                          startedAt,
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                    // Summary
+                    if (item['summary_preview'] != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        item['summary_preview'] as String,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           );
         },

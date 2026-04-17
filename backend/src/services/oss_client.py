@@ -1,12 +1,11 @@
 from datetime import UTC, datetime
 
-import oss2
-
 from src.config import settings
 
 
 class OSSClient:
     def __init__(self):
+        import oss2
         auth = oss2.Auth(settings.oss_access_key_id, settings.oss_access_key_secret)
         self.bucket = oss2.Bucket(auth, settings.oss_endpoint, settings.oss_bucket_name)
 

@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from src.dependencies import get_db
 from src.models.department import Department
 from src.models.dossier import Dossier
+from src.models.document_type import DocumentType
 from src.models.submission import Submission
 from src.models.workflow_step import WorkflowStep
 from src.security.auth import StaffIdentity, get_current_staff
@@ -53,7 +54,9 @@ async def get_department_queue(
     offset = (page - 1) * per_page
     query = query.offset(offset).limit(per_page)
 
-    result = await db.execute(query.options(selectinload(WorkflowStep.submission)))
+    result = await db.execute(query.options(
+        selectinload(WorkflowStep.submission).selectinload(Submission.document_type),
+    ))
     steps = result.scalars().all()
 
     from datetime import datetime
@@ -81,7 +84,11 @@ async def get_department_queue(
             "workflow_step_id": str(step.id),
             "submission_id": str(step.submission_id) if step.submission_id else None,
             "dossier_id": str(step.dossier_id) if step.dossier_id else None,
-            "document_type_name": "",  # Would join through submission.document_type
+            "document_type_name": (
+                step.submission.document_type.name
+                if step.submission and step.submission.document_type
+                else ""
+            ),
             "priority": step.submission.priority if step.submission else "normal",
             "started_at": step.started_at.isoformat() if step.started_at else None,
             "expected_complete_by": step.expected_complete_by.isoformat() if step.expected_complete_by else None,

@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,7 @@ from src.models.submission import Submission
 from src.models.workflow_step import WorkflowStep
 from src.security.abac import check_submission_clearance
 from src.security.auth import StaffIdentity, get_current_staff
-from src.services.oss_client import OSSClient
+from src.services.oss_client import oss_client
 from src.services.review_service import create_consultation, process_review, validate_reviewer
 
 router = APIRouter(tags=["workflow-steps"])
@@ -24,6 +24,7 @@ router = APIRouter(tags=["workflow-steps"])
 @router.get("/{step_id}")
 async def get_step_detail(
     step_id: uuid.UUID,
+    request: Request,
     staff: StaffIdentity = Depends(get_current_staff),
     db: AsyncSession = Depends(get_db),
 ):
@@ -47,12 +48,14 @@ async def get_step_detail(
 
     # Load document type name
     doc_type_name = None
+    doc_type_schema = None
     if submission.document_type_id:
         dt_result = await db.execute(
             select(DocumentType).where(DocumentType.id == submission.document_type_id)
         )
         dt = dt_result.scalar_one_or_none()
         doc_type_name = dt.name if dt else None
+        doc_type_schema = dt.template_schema if dt else None
 
     await check_submission_clearance(submission.id, staff, db, action="review", submission=submission)
 
@@ -63,11 +66,16 @@ async def get_step_detail(
     )
     pages = pages_result.scalars().all()
 
-    oss = OSSClient()
+    def _resolve_image_url(key: str) -> str:
+        url = oss_client.get_presigned_url(key)
+        if url.startswith("/"):
+            return f"{request.base_url.scheme}://{request.base_url.netloc}{url}"
+        return url
+
     page_list = [
         {
             "page_number": p.page_number,
-            "image_url": oss.get_presigned_url(p.image_oss_key),
+            "image_url": _resolve_image_url(p.image_oss_key),
             "ocr_text": p.ocr_corrected_text or p.ocr_raw_text,
             "ocr_confidence": p.ocr_confidence,
         }
@@ -109,6 +117,7 @@ async def get_step_detail(
             "security_classification": submission.security_classification,
             "document_type_name": doc_type_name,
             "template_data": submission.template_data,
+            "template_schema": doc_type_schema,
         },
         "pages": page_list,
         "annotations_by_department": annotations_by_dept,

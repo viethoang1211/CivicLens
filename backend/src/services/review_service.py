@@ -39,7 +39,7 @@ async def process_review(
         author_id=staff.id,
         annotation_type=result,
         content=comment,
-        target_citizen=target_citizen,
+        target_citizen=target_citizen or result in ("rejected", "needs_info"),
     )
     db.add(annotation)
 

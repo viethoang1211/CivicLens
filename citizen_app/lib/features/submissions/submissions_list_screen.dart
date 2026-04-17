@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_dart/shared_dart.dart';
 
+import 'submission_detail_screen.dart';
+
 class SubmissionsListScreen extends StatefulWidget {
   final CitizenApi citizenApi;
 
@@ -166,6 +168,14 @@ class _SubmissionsListScreenState extends State<SubmissionsListScreen> {
                                     trailing: sub.isDelayed
                                         ? const Icon(Icons.warning, color: Colors.orange)
                                         : const Icon(Icons.chevron_right),
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => SubmissionDetailScreen(
+                                          citizenApi: widget.citizenApi,
+                                          submissionId: sub.id,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 );
                               },

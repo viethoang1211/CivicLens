@@ -13,6 +13,7 @@ from src.models.citizen import Citizen
 from src.models.dossier import Dossier
 from src.models.scanned_page import ScannedPage
 from src.models.submission import Submission
+from src.services.audit_service import log_access
 from src.security.abac import check_submission_clearance
 from src.security.auth import StaffIdentity, get_current_staff
 from src.services.dossier_service import generate_reference_number, create_dossier_workflow
@@ -285,3 +286,38 @@ async def submit_ocr_corrections(
         logging.getLogger(__name__).exception("Summarization enqueue failed")
 
     return {"status": "ok"}
+
+
+class _TemplateDataPatchBody(BaseModel):
+    template_data: dict
+
+
+@router.patch("/{submission_id}/template-data")
+async def patch_template_data(
+    submission_id: uuid.UUID,
+    body: _TemplateDataPatchBody,
+    staff: StaffIdentity = Depends(get_current_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Allow staff to correct AI-extracted template_data fields (e.g. fix OCR name typos)."""
+    submission = await check_submission_clearance(submission_id, staff, db, action="correct_ocr")
+
+    # Copy to new dict — SQLAlchemy won't detect in-place JSONB mutations
+    existing = dict(submission.template_data) if submission.template_data else {}
+    # Merge: only update provided keys, preserve internal _ keys
+    for key, value in body.template_data.items():
+        if key.startswith("_"):
+            continue  # Don't allow overriding internal metadata
+        existing[key] = value
+    submission.template_data = existing
+
+    await log_access(
+        db,
+        actor_type="staff",
+        actor_id=str(staff.staff_id),
+        action="correct_template_data",
+        resource_type="submission",
+        resource_id=str(submission_id),
+    )
+    await db.commit()
+    return {"status": "ok", "template_data": {k: v for k, v in existing.items() if not k.startswith("_")}}

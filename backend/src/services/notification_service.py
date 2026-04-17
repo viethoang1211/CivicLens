@@ -27,8 +27,8 @@ async def create_notification(
     )
     db.add(notification)
     await db.flush()
-
-    # Push via Alibaba Cloud EMAS
+    await db.commit()
+    await db.refresh(notification)
     citizen_result = await db.execute(select(Citizen).where(Citizen.id == citizen_id))
     citizen = citizen_result.scalar_one_or_none()
     if citizen and citizen.push_token:
@@ -40,6 +40,8 @@ async def create_notification(
 async def notify_step_advanced(
     db: AsyncSession, submission: Submission, department_name: str, step_order: int
 ) -> None:
+    if submission.citizen_id is None:
+        return
     await create_notification(
         db=db,
         citizen_id=submission.citizen_id,
@@ -53,6 +55,8 @@ async def notify_step_advanced(
 async def notify_info_requested(
     db: AsyncSession, submission: Submission, message: str
 ) -> None:
+    if submission.citizen_id is None:
+        return
     await create_notification(
         db=db,
         citizen_id=submission.citizen_id,
@@ -64,6 +68,8 @@ async def notify_info_requested(
 
 
 async def notify_completed(db: AsyncSession, submission: Submission) -> None:
+    if submission.citizen_id is None:
+        return
     await create_notification(
         db=db,
         citizen_id=submission.citizen_id,
@@ -75,6 +81,8 @@ async def notify_completed(db: AsyncSession, submission: Submission) -> None:
 
 
 async def notify_delayed(db: AsyncSession, submission: Submission, department_name: str) -> None:
+    if submission.citizen_id is None:
+        return
     await create_notification(
         db=db,
         citizen_id=submission.citizen_id,

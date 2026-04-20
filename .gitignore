@@ -11,6 +11,9 @@ venv/
 .env
 .env.*
 
+# node
+node_modules/
+
 # Dart/Flutter
 .dart_tool/
 .packages

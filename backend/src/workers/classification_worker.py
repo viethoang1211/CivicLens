@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 import uuid
 
 from sqlalchemy import create_engine, select
@@ -13,7 +14,7 @@ from src.models.dossier import Dossier
 from src.models.dossier_document import DossierDocument
 from src.models.scanned_page import ScannedPage
 from src.models.submission import Submission
-from src.services.ai_client import ai_client
+from src.services.ai_client import ai_client, estimate_ocr_confidence
 from src.workers.celery_app import celery_app
 
 sync_engine = create_engine(settings.database_url)
@@ -24,15 +25,32 @@ logger = logging.getLogger(__name__)
 # ── JSON parsing helper ──────────────────────────────────────────
 
 def _parse_ai_json(raw_result) -> dict | None:
-    """Safely parse AI classification result from raw string or dict."""
+    """Safely parse AI classification result from raw string or dict.
+
+    Handles common AI output quirks: markdown fences, trailing commas,
+    extra text surrounding JSON, and pre-parsed dicts.
+    """
     try:
         if isinstance(raw_result, dict):
             return raw_result
         if isinstance(raw_result, str):
             cleaned = raw_result.strip()
+            # Strip markdown code fences
             if cleaned.startswith("```"):
-                cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
-            return json.loads(cleaned)
+                cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            # Try direct parse first
+            try:
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                pass
+            # Fallback: extract first JSON object from surrounding text
+            brace_start = cleaned.find("{")
+            brace_end = cleaned.rfind("}")
+            if brace_start != -1 and brace_end > brace_start:
+                candidate = cleaned[brace_start : brace_end + 1]
+                # Remove trailing commas before } or ]
+                candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
+                return json.loads(candidate)
     except (json.JSONDecodeError, IndexError, ValueError):
         return None
 
@@ -93,14 +111,19 @@ def _ensemble_classification(
             },
         }
 
-    # ── Models disagree → use highest confidence with penalty ──
+    # ── Models disagree → use highest confidence with gap-aware penalty ──
+    # Larger confidence gap = the winner is more dominant, so penalize less.
+    # Gap 0.0 → full 20% penalty;  Gap 1.0 → only 5% penalty.
     if vision_conf >= text_conf:
         primary, secondary, source = vision_result, text_result, "vision"
     else:
         primary, secondary, source = text_result, vision_result, "text"
 
     primary_conf = float(primary.get("confidence", 0.0))
-    ensemble_conf = primary_conf * 0.80  # 20% penalty for disagreement
+    secondary_conf = float(secondary.get("confidence", 0.0))
+    gap = abs(primary_conf - secondary_conf)
+    penalty = 0.20 - (0.15 * gap)  # ranges from 0.20 (gap=0) to 0.05 (gap=1)
+    ensemble_conf = primary_conf * (1.0 - penalty)
 
     # Include the other model's pick as the first alternative
     secondary_alt = {
@@ -314,6 +337,7 @@ def run_classification(self, submission_id: str):
     Path 2 (Vision): qwen3-vl-plus classifies from the document image directly
     Ensemble:        Combine both results with calibrated confidence scoring
     """
+    t_start = time.monotonic()
     sub_uuid = uuid.UUID(submission_id)
 
     with Session(sync_engine) as db:
@@ -330,6 +354,22 @@ def run_classification(self, submission_id: str):
 
         if not combined_text.strip():
             return  # Nothing to classify
+
+        # ── OCR quality gate ─────────────────────────────────────
+        ocr_confidence = estimate_ocr_confidence(combined_text)
+        if ocr_confidence < 0.3:
+            logger.warning(
+                "OCR quality too low for %s (confidence=%.2f, text_len=%d) — skipping classification",
+                submission_id, ocr_confidence, len(combined_text),
+            )
+            submission = db.execute(select(Submission).where(Submission.id == sub_uuid)).scalar_one()
+            if submission.template_data is None:
+                submission.template_data = {}
+            submission.template_data["_ocr_quality_too_low"] = True
+            submission.template_data["_ocr_confidence"] = round(ocr_confidence, 4)
+            submission.status = "pending_classification"
+            db.commit()
+            return
 
         # Fetch active document types
         doc_types = db.execute(
@@ -353,25 +393,30 @@ def run_classification(self, submission_id: str):
         # ── Path 1: Text-based classification ────────────────────
         text_result = None
         try:
+            t_text = time.monotonic()
             type_dicts = [
                 {"code": dt.code, "name": dt.name, "description": dt.description or ""}
                 for dt in classifiable_types
             ]
             raw_text = ai_client.classify_document(combined_text, type_dicts)
             text_result = _parse_ai_json(raw_text)
-            logger.info("Text classification for %s: %s (%.2f)",
+            logger.info("Text classification for %s: %s (%.2f) [%.1fs]",
                         submission_id,
                         text_result.get("document_type_code") if text_result else "FAILED",
-                        float(text_result.get("confidence", 0)) if text_result else 0)
+                        float(text_result.get("confidence", 0)) if text_result else 0,
+                        time.monotonic() - t_text)
         except Exception:
             logger.exception("Text classification failed for %s", submission_id)
 
+        # ── CCCD page detection (cached for vision + template fill) ──
+        cccd_page, cccd_number = None, None
+        if len(pages) > 1:
+            cccd_page, cccd_number = _detect_cccd_page(pages)
+
         # ── Path 2: Vision-based classification ──────────────────
         # For multi-page: skip the CCCD page and use the main document page.
-        # Use _detect_cccd_page to find which page is the ID card, then pick any other page.
         vision_result = None
         if len(pages) > 1:
-            cccd_page, _ = _detect_cccd_page(pages)
             non_cccd_pages = [p for p in pages if cccd_page is None or p.id != cccd_page.id]
             vision_page = non_cccd_pages[0] if non_cccd_pages else pages[-1]
             logger.info(
@@ -384,6 +429,7 @@ def run_classification(self, submission_id: str):
         first_page = vision_page
         if first_page and first_page.image_oss_key:
             try:
+                t_vision = time.monotonic()
                 from src.services.oss_client import oss_client
                 image_data = oss_client.download(first_page.image_oss_key)
 
@@ -398,10 +444,11 @@ def run_classification(self, submission_id: str):
                 ]
                 raw_vision = ai_client.classify_document_visual(image_data, vision_type_dicts)
                 vision_result = _parse_ai_json(raw_vision)
-                logger.info("Vision classification for %s: %s (%.2f)",
+                logger.info("Vision classification for %s: %s (%.2f) [%.1fs]",
                             submission_id,
                             vision_result.get("document_type_code") if vision_result else "FAILED",
-                            float(vision_result.get("confidence", 0)) if vision_result else 0)
+                            float(vision_result.get("confidence", 0)) if vision_result else 0,
+                            time.monotonic() - t_vision)
             except Exception:
                 logger.exception("Vision classification failed for %s", submission_id)
 
@@ -468,19 +515,15 @@ def run_classification(self, submission_id: str):
             submission.template_data["_classification_visual_features"] = classification.get("visual_features", [])
             submission.template_data["_classification_key_signals"] = classification.get("key_signals", [])
             submission.template_data["_classification_ensemble"] = classification.get("ensemble_detail")
+            submission.template_data["_ocr_confidence"] = round(ocr_confidence, 4)
 
-            # Run template filling
-            template_result = ai_client.fill_template(combined_text, matched_type.template_schema)
-            try:
-                if isinstance(template_result, str):
-                    cleaned = template_result.strip()
-                    if cleaned.startswith("```"):
-                        cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
-                    filled = json.loads(cleaned)
-                else:
-                    filled = template_result
-            except (json.JSONDecodeError, IndexError):
+            # Run template filling (skip when confidence is very low to avoid extracting with wrong type)
+            if confidence >= 0.3:
+                template_result = ai_client.fill_template(combined_text, matched_type.template_schema)
+                filled = _parse_ai_json(template_result) or {}
+            else:
                 filled = {}
+                logger.info("Skipping template fill for %s — confidence %.2f too low", submission_id, confidence)
 
             # Merge template data, preserving classification metadata
             classification_meta = {
@@ -493,40 +536,37 @@ def run_classification(self, submission_id: str):
             # For multi-page scans: if a CCCD page is detected, run fill_template
             # with the ID_CCCD schema on that page's OCR text to extract full citizen data
             # (so_cccd, ho_ten, ngay_sinh, etc.) — not just a regex-matched number.
-            if len(pages) > 1 and "so_cccd" not in submission.template_data:
-                cccd_page, _ = _detect_cccd_page(pages)
-                if cccd_page:
-                    try:
-                        cccd_doc_type = db.execute(
-                            select(DocumentType).where(DocumentType.code == "ID_CCCD")
-                        ).scalar_one_or_none()
-                        if cccd_doc_type and cccd_doc_type.template_schema:
-                            cccd_ocr = cccd_page.ocr_corrected_text or cccd_page.ocr_raw_text or ""
-                            cccd_raw = ai_client.fill_template(cccd_ocr, cccd_doc_type.template_schema)
-                            if isinstance(cccd_raw, str):
-                                cleaned = cccd_raw.strip()
-                                if cleaned.startswith("```"):
-                                    cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
-                                cccd_filled = json.loads(cleaned)
-                            else:
-                                cccd_filled = cccd_raw
-                            if isinstance(cccd_filled, dict):
-                                # Merge CCCD fields: so_cccd is the primary key, ho_ten etc. as context
-                                for key in ("so_cccd", "ho_ten", "ngay_sinh", "gioi_tinh", "que_quan", "noi_thuong_tru"):
-                                    val = cccd_filled.get(key)
-                                    if val and str(val).strip():
-                                        submission.template_data[f"_cccd_{key}"] = str(val).strip()
-                                # Promote so_cccd to top-level for citizen linking
-                                so_cccd_val = cccd_filled.get("so_cccd", "").strip() if isinstance(cccd_filled.get("so_cccd"), str) else ""
-                                if so_cccd_val and _validate_cccd_number(so_cccd_val):
-                                    submission.template_data["so_cccd"] = so_cccd_val
-                                    logger.info(
-                                        "Multi-page scan %s: CCCD data extracted via fill_template (so_cccd=%s, ho_ten=%s)",
-                                        submission_id, so_cccd_val, cccd_filled.get("ho_ten", ""),
-                                    )
-                    except Exception:
-                        logger.exception("Failed to fill CCCD template for page %d of submission %s",
-                                         cccd_page.page_number, submission_id)
+            # Uses cached cccd_page from the detection earlier in this function.
+            if len(pages) > 1 and "so_cccd" not in submission.template_data and cccd_page:
+                try:
+                    cccd_doc_type = db.execute(
+                        select(DocumentType).where(DocumentType.code == "ID_CCCD")
+                    ).scalar_one_or_none()
+                    if cccd_doc_type and cccd_doc_type.template_schema:
+                        cccd_ocr = cccd_page.ocr_corrected_text or cccd_page.ocr_raw_text or ""
+                        cccd_raw = ai_client.fill_template(cccd_ocr, cccd_doc_type.template_schema)
+                        cccd_filled = _parse_ai_json(cccd_raw)
+                        if isinstance(cccd_filled, dict):
+                            # Merge CCCD fields: so_cccd is the primary key, ho_ten etc. as context
+                            for key in ("so_cccd", "ho_ten", "ngay_sinh", "gioi_tinh", "que_quan", "noi_thuong_tru"):
+                                val = cccd_filled.get(key)
+                                if val and str(val).strip():
+                                    submission.template_data[f"_cccd_{key}"] = str(val).strip()
+                            # Promote so_cccd to top-level for citizen linking
+                            so_cccd_val = (
+                                cccd_filled.get("so_cccd", "").strip()
+                                if isinstance(cccd_filled.get("so_cccd"), str)
+                                else ""
+                            )
+                            if so_cccd_val and _validate_cccd_number(so_cccd_val):
+                                submission.template_data["so_cccd"] = so_cccd_val
+                                logger.info(
+                                    "Multi-page scan %s: CCCD data extracted (so_cccd=%s, ho_ten=%s)",
+                                    submission_id, so_cccd_val, cccd_filled.get("ho_ten", ""),
+                                )
+                except Exception:
+                    logger.exception("Failed to fill CCCD template for page %d of submission %s",
+                                     cccd_page.page_number, submission_id)
 
         # Auto-link citizen if CCCD number found in template data
         if submission.citizen_id is None:
@@ -567,6 +607,8 @@ def run_classification(self, submission_id: str):
 
         submission.status = "pending_classification"  # Stays pending until staff confirms
         db.commit()
+
+    logger.info("Classification complete for %s [total %.1fs]", submission_id, time.monotonic() - t_start)
 
     # Chain to summarization after successful classification
     try:
@@ -652,13 +694,7 @@ def validate_document_slot(self, dossier_document_id: str):
                         for p in all_pages
                     )
                     cccd_raw = ai_client.fill_template(combined_ocr, _early_doc_type.template_schema)
-                    if isinstance(cccd_raw, str):
-                        cleaned = cccd_raw.strip()
-                        if cleaned.startswith("```"):
-                            cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]
-                        cccd_filled = json.loads(cleaned)
-                    else:
-                        cccd_filled = cccd_raw
+                    cccd_filled = _parse_ai_json(cccd_raw)
                     if isinstance(cccd_filled, dict):
                         so_cccd = cccd_filled.get("so_cccd", "").strip() if isinstance(cccd_filled.get("so_cccd"), str) else ""
                         if so_cccd and _validate_cccd_number(so_cccd):

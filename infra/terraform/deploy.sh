@@ -19,7 +19,7 @@ SSH_CMD="ssh -o StrictHostKeyChecking=no root@$ECS_IP"
 
 if [ "${1:-}" = "--restart-only" ]; then
   echo "==> Restarting containers on ECS ($ECS_IP)..."
-  $SSH_CMD "cd /opt/public-sector && docker compose up -d"
+  $SSH_CMD "cd /opt/public-sector && docker-compose up -d"
   echo "==> Done! API: http://$ECS_IP:8000/docs"
   exit 0
 fi
@@ -45,7 +45,7 @@ echo "==> Loading images on ECS..."
 $SSH_CMD "gunzip -c /tmp/ps-images.tar.gz | docker load && rm /tmp/ps-images.tar.gz"
 
 echo "==> Restarting services..."
-$SSH_CMD "cd /opt/public-sector && docker compose up -d"
+$SSH_CMD "cd /opt/public-sector && docker-compose up -d"
 
 # Cleanup local tar
 rm -f /tmp/ps-images.tar.gz

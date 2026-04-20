@@ -890,6 +890,120 @@ Now includes `ai_summary`, `ai_summary_is_ai_generated`, and `entities` fields.
 
 ---
 
+## Audit & Compliance APIs
+
+All staff actions on classified data are automatically logged. Admin users (clearance ≥ 2) can query the audit trail for compliance review.
+
+The data is consumed by the built-in admin dashboard at `GET /admin/` (served as static HTML by the backend).
+
+### `GET /v1/staff/audit/logs`
+
+List audit entries with optional filters and pagination.
+
+**Query parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `resource_type` | string \| null | Filter by resource (`submission`, `dossier`, `workflow_step`, `scanned_page`) |
+| `resource_id` | UUID \| null | Filter by specific resource ID |
+| `action` | string \| null | Filter by action name (e.g. `review_approved`) |
+| `page` | int | Default 1 |
+| `per_page` | int | 1–200, default 50 |
+
+**Response:**
+
+```json
+{
+  "items": [
+    {
+      "id": "...",
+      "actor_type": "staff",
+      "actor_id": "...",
+      "actor_name": "Nguyễn Văn An",
+      "action": "review_approved",
+      "resource_type": "workflow_step",
+      "resource_id": "...",
+      "clearance_check_result": "granted",
+      "metadata": {},
+      "created_at": "2026-04-20T23:23:09+08:00"
+    }
+  ],
+  "total": 191,
+  "page": 1
+}
+```
+
+### `GET /v1/staff/audit/submissions/{submission_id}/trail`
+
+Complete audit timeline for a submission (legacy flow): submission events + workflow step events + annotations, chronologically sorted.
+
+### `GET /v1/staff/audit/dossiers/{dossier_id}/trail`
+
+Complete audit timeline for a dossier (case-based flow).
+
+**Response:**
+
+```json
+{
+  "dossier_id": "...",
+  "reference_number": "HS-20260417-00008",
+  "status": "completed",
+  "security_classification": 0,
+  "timeline": [
+    {
+      "timestamp": "2026-04-17T23:21:34+08:00",
+      "action": "review_approved",
+      "actor_type": "staff",
+      "actor_name": "Nguyễn Văn An",
+      "resource_type": "workflow_step",
+      "department": "Tiếp nhận (Reception)",
+      "clearance_check_result": "granted",
+      "details": { "content": "approve" }
+    }
+  ],
+  "total_events": 6
+}
+```
+
+### `GET /v1/staff/audit/stats?days=7`
+
+Aggregated metrics for the admin overview dashboard.
+
+**Query parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `days` | int | Rolling window in days (1–90, default 7) |
+
+**Response:**
+
+```json
+{
+  "window_days": 7,
+  "total_events": 191,
+  "denied_count": 0,
+  "top_actions": [ { "action": "scan", "count": 73 } ],
+  "by_resource_type": [ { "resource_type": "submission", "count": 146 } ],
+  "top_actors": [ { "actor_id": "...", "actor_name": "Nguyễn Văn An", "count": 156 } ]
+}
+```
+
+---
+
+## Workflow Step Response (updated)
+
+`GET /v1/staff/dossiers/{id}` now includes reviewer attribution for each `workflow_step`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `department_name` | string | Human-readable department name |
+| `assigned_reviewer_id` | UUID \| null | Staff member who last reviewed |
+| `assigned_reviewer_name` | string \| null | Reviewer's full name |
+| `result` | string \| null | Review outcome (`approved`, `rejected`, `needs_info`) |
+| `annotations` | array | Reviewer comments with timestamps |
+
+---
+
 ## Error Responses
 
 All errors follow a consistent format:

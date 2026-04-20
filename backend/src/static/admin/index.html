@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <title>Audit & Compliance Dashboard — Public Sector</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: '#1B2A4A',
+            medNavy: '#2B4C7E',
+            teal: '#0891B2',
+            ice: '#E8F4F8',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .fade-in { animation: fadeIn .2s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .action-pill { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.72rem; }
+    .scroll-fade::after {
+      content: '';
+      position: sticky;
+      bottom: 0;
+      display: block;
+      height: 30px;
+      background: linear-gradient(transparent, white);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- LOGIN SCREEN                                      -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-navy to-medNavy">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 rounded-lg bg-teal flex items-center justify-center">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-navy">Audit & Compliance</h1>
+          <p class="text-xs text-slate-500">Public Sector Admin Dashboard</p>
+        </div>
+      </div>
+
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Staff ID</label>
+          <input type="text" id="login-employee-id" required
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal focus:border-teal"
+            placeholder="e.g., NV007" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
+          <input type="password" id="login-password" required
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal focus:border-teal"
+            placeholder="••••••••" />
+        </div>
+        <div id="login-error" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
+        <button type="submit"
+          class="w-full bg-navy hover:bg-medNavy text-white font-semibold py-2.5 rounded-lg transition">
+          Sign In
+        </button>
+      </form>
+
+      <div class="mt-6 pt-6 border-t border-slate-200 text-xs text-slate-500">
+        <p class="font-semibold mb-1">Demo accounts:</p>
+        <p>NV007 / password123 — Leadership (full access)</p>
+        <p>NV001 / password123 — Reception officer</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- MAIN APP                                          -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div id="app" class="hidden">
+    <!-- Header -->
+    <header class="bg-navy text-white shadow">
+      <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <svg class="w-7 h-7 text-teal" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <div>
+            <h1 class="font-bold text-lg leading-tight">Audit & Compliance</h1>
+            <p class="text-xs text-slate-300 leading-tight">Public Sector Admin Dashboard</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-4">
+          <span id="current-user" class="text-sm text-slate-200"></span>
+          <button id="logout-btn" class="text-sm text-slate-300 hover:text-white">Sign out</button>
+        </div>
+      </div>
+      <!-- Tabs -->
+      <nav class="max-w-7xl mx-auto px-6 flex gap-1">
+        <button data-tab="overview" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-teal text-white">Overview</button>
+        <button data-tab="logs" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-300 hover:text-white">Audit Logs</button>
+        <button data-tab="trail" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-300 hover:text-white">Case Trail</button>
+      </nav>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-6">
+      <!-- ─── OVERVIEW TAB ─── -->
+      <section id="tab-overview" class="tab-panel fade-in">
+        <div class="mb-4 flex items-center justify-between">
+          <div>
+            <h2 class="text-2xl font-bold text-navy">Overview</h2>
+            <p class="text-sm text-slate-500">Audit activity and compliance metrics</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm text-slate-600">Window:</label>
+            <select id="window-days" class="border border-slate-300 rounded px-2 py-1 text-sm">
+              <option value="1">Last 24h</option>
+              <option value="7" selected>Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="grid grid-cols-4 gap-4 mb-6">
+          <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-teal">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Total Events</p>
+            <p id="stat-total" class="text-3xl font-bold text-navy mt-1">—</p>
+          </div>
+          <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-green-600">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Access Granted</p>
+            <p id="stat-granted" class="text-3xl font-bold text-green-700 mt-1">—</p>
+          </div>
+          <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-red-600">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Access Denied</p>
+            <p id="stat-denied" class="text-3xl font-bold text-red-700 mt-1">—</p>
+          </div>
+          <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-medNavy">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Active Actors</p>
+            <p id="stat-actors" class="text-3xl font-bold text-medNavy mt-1">—</p>
+          </div>
+        </div>
+
+        <!-- Two columns: top actions + top actors -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div class="bg-white rounded-lg shadow-sm p-4">
+            <h3 class="text-sm font-semibold text-navy mb-3">Top Actions</h3>
+            <table class="w-full text-sm">
+              <tbody id="top-actions-body"></tbody>
+            </table>
+          </div>
+          <div class="bg-white rounded-lg shadow-sm p-4">
+            <h3 class="text-sm font-semibold text-navy mb-3">Most Active Staff</h3>
+            <table class="w-full text-sm">
+              <tbody id="top-actors-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- By resource type -->
+        <div class="bg-white rounded-lg shadow-sm p-4">
+          <h3 class="text-sm font-semibold text-navy mb-3">Events by Resource Type</h3>
+          <div id="by-resource-body" class="space-y-2"></div>
+        </div>
+      </section>
+
+      <!-- ─── AUDIT LOGS TAB ─── -->
+      <section id="tab-logs" class="tab-panel fade-in hidden">
+        <div class="mb-4">
+          <h2 class="text-2xl font-bold text-navy">Audit Logs</h2>
+          <p class="text-sm text-slate-500">Complete record of all staff actions and access attempts</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
+          <div class="grid grid-cols-4 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Resource Type</label>
+              <select id="filter-resource-type" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+                <option value="">All</option>
+                <option value="submission">Submission</option>
+                <option value="dossier">Dossier</option>
+                <option value="workflow_step">Workflow Step</option>
+                <option value="scanned_page">Scanned Page</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Action</label>
+              <input type="text" id="filter-action" placeholder="e.g. review_approved"
+                class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Per Page</label>
+              <select id="filter-per-page" class="w-full border border-slate-300 rounded px-2 py-1.5 text-sm">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+            </div>
+            <div class="flex items-end gap-2">
+              <button id="apply-filters-btn" class="bg-teal hover:bg-cyan-700 text-white px-4 py-1.5 text-sm rounded font-medium">Apply</button>
+              <button id="reset-filters-btn" class="border border-slate-300 text-slate-700 px-3 py-1.5 text-sm rounded font-medium hover:bg-slate-100">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logs table -->
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-100 text-slate-600 uppercase text-xs tracking-wide">
+              <tr>
+                <th class="px-4 py-2 text-left">Timestamp</th>
+                <th class="px-4 py-2 text-left">Actor</th>
+                <th class="px-4 py-2 text-left">Action</th>
+                <th class="px-4 py-2 text-left">Resource</th>
+                <th class="px-4 py-2 text-left">Clearance</th>
+              </tr>
+            </thead>
+            <tbody id="logs-tbody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between mt-4">
+          <div id="logs-summary" class="text-sm text-slate-500"></div>
+          <div class="flex items-center gap-2">
+            <button id="prev-page" class="px-3 py-1 border border-slate-300 rounded text-sm disabled:opacity-50">← Prev</button>
+            <span id="page-indicator" class="text-sm text-slate-600">Page 1</span>
+            <button id="next-page" class="px-3 py-1 border border-slate-300 rounded text-sm disabled:opacity-50">Next →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─── CASE TRAIL TAB ─── -->
+      <section id="tab-trail" class="tab-panel fade-in hidden">
+        <div class="mb-4">
+          <h2 class="text-2xl font-bold text-navy">Case Audit Trail</h2>
+          <p class="text-sm text-slate-500">Complete timeline of events, reviews, and access — supports both dossier (case-based) and submission (quick scan) flows</p>
+        </div>
+
+        <!-- Lookup panel -->
+        <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
+          <!-- Mode toggle -->
+          <div class="flex gap-2 mb-4">
+            <button id="mode-dossier" class="trail-mode-btn px-4 py-1.5 text-sm font-medium rounded-full bg-teal text-white">Dossier (Hồ sơ)</button>
+            <button id="mode-submission" class="trail-mode-btn px-4 py-1.5 text-sm font-medium rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200">Submission (Quick Scan)</button>
+          </div>
+
+          <!-- UUID manual input -->
+          <div class="flex gap-3 items-end">
+            <div class="flex-1">
+              <label class="block text-xs font-medium text-slate-600 mb-1" id="trail-input-label">Dossier ID (UUID)</label>
+              <input type="text" id="trail-id-input" placeholder="Paste UUID or select from list below"
+                class="w-full border border-slate-300 rounded px-3 py-2 text-sm font-mono" />
+            </div>
+            <button id="load-trail-btn" class="bg-teal hover:bg-cyan-700 text-white px-5 py-2 rounded font-medium">Load Trail</button>
+          </div>
+        </div>
+
+        <!-- Recent dossiers picker -->
+        <div id="recent-dossiers-panel" class="bg-white rounded-lg shadow-sm mb-4">
+          <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-navy">Recent Dossiers — click to load trail</h3>
+            <button id="refresh-dossiers-btn" class="text-xs text-teal hover:underline">Refresh</button>
+          </div>
+          <div id="recent-dossiers-list" class="divide-y divide-slate-100 max-h-64 overflow-y-auto"></div>
+        </div>
+
+        <!-- Recent submissions picker (hidden by default) -->
+        <div id="recent-submissions-panel" class="bg-white rounded-lg shadow-sm mb-4 hidden">
+          <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-navy">Recent Submissions (Quick Scan) — click to load trail</h3>
+            <button id="refresh-submissions-btn" class="text-xs text-teal hover:underline">Refresh</button>
+          </div>
+          <div id="recent-submissions-list" class="divide-y divide-slate-100 max-h-64 overflow-y-auto"></div>
+        </div>
+
+        <!-- Trail result -->
+        <div id="trail-result" class="hidden">
+          <div class="bg-white rounded-lg shadow-sm p-4 mb-4">
+            <div id="trail-header-grid" class="grid grid-cols-4 gap-4">
+              <div>
+                <p class="text-xs text-slate-500 uppercase">Reference</p>
+                <p id="trail-ref" class="font-mono font-semibold text-navy mt-1">—</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 uppercase">Status</p>
+                <p id="trail-status" class="font-semibold text-navy mt-1">—</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 uppercase">Classification</p>
+                <p id="trail-classification" class="font-semibold mt-1">—</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 uppercase">Events</p>
+                <p id="trail-total" class="font-semibold text-navy mt-1">—</p>
+              </div>
+            </div>
+            <!-- Link to related dossier (shown for submissions) -->
+            <div id="trail-linked-dossier" class="hidden mt-3 pt-3 border-t border-slate-100">
+              <button id="trail-goto-dossier" class="text-sm text-teal hover:underline font-medium">→ View linked Dossier trail</button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow-sm p-6">
+            <h3 class="text-sm font-semibold text-navy mb-4">Timeline</h3>
+            <div id="trail-timeline" class="space-y-3"></div>
+          </div>
+        </div>
+
+        <div id="trail-empty" class="bg-white rounded-lg shadow-sm p-12 text-center">
+          <svg class="w-16 h-16 mx-auto text-slate-300 mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <p class="text-sm text-slate-500">Select a case from the list above or paste a UUID to view its audit trail.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════
+    // State
+    // ═══════════════════════════════════════════════
+    const API = window.location.origin;
+    const State = {
+      token: localStorage.getItem('audit_token') || null,
+      user: JSON.parse(localStorage.getItem('audit_user') || 'null'),
+      currentPage: 1,
+      perPage: 50,
+      windowDays: 7,
+    };
+
+    // ═══════════════════════════════════════════════
+    // API helpers
+    // ═══════════════════════════════════════════════
+    async function apiCall(path, options = {}) {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      };
+      if (State.token) headers['Authorization'] = `Bearer ${State.token}`;
+      const resp = await fetch(`${API}${path}`, { ...options, headers });
+      if (resp.status === 401) {
+        doLogout();
+        throw new Error('Session expired');
+      }
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || err.message || `HTTP ${resp.status}`);
+      }
+      return resp.json();
+    }
+
+    // ═══════════════════════════════════════════════
+    // Auth
+    // ═══════════════════════════════════════════════
+    async function doLogin(employeeId, password) {
+      const resp = await fetch(`${API}/v1/staff/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: employeeId, password }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || 'Invalid credentials');
+      }
+      const data = await resp.json();
+      State.token = data.access_token;
+      State.user = {
+        employee_id: employeeId,
+        full_name: data.full_name || data.staff_name || employeeId,
+        role: data.role,
+      };
+      localStorage.setItem('audit_token', State.token);
+      localStorage.setItem('audit_user', JSON.stringify(State.user));
+      showApp();
+    }
+
+    function doLogout() {
+      State.token = null;
+      State.user = null;
+      localStorage.removeItem('audit_token');
+      localStorage.removeItem('audit_user');
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('app').classList.add('hidden');
+    }
+
+    function showApp() {
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      document.getElementById('current-user').textContent = State.user ? State.user.full_name : '';
+      loadOverview();
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById('login-error');
+      errBox.classList.add('hidden');
+      try {
+        await doLogin(
+          document.getElementById('login-employee-id').value.trim(),
+          document.getElementById('login-password').value,
+        );
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', doLogout);
+
+    // ═══════════════════════════════════════════════
+    // Tabs
+    // ═══════════════════════════════════════════════
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.remove('border-teal', 'text-white');
+          b.classList.add('border-transparent', 'text-slate-300');
+        });
+        btn.classList.add('border-teal', 'text-white');
+        btn.classList.remove('border-transparent', 'text-slate-300');
+
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+        document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+        if (tabId === 'overview') loadOverview();
+        else if (tabId === 'logs') loadLogs();
+        else if (tabId === 'trail') { if (trailMode === 'dossier') loadRecentDossiers(); else loadRecentSubmissions(); }
+      });
+    });
+
+    // ═══════════════════════════════════════════════
+    // Overview
+    // ═══════════════════════════════════════════════
+    document.getElementById('window-days').addEventListener('change', (e) => {
+      State.windowDays = parseInt(e.target.value);
+      loadOverview();
+    });
+
+    async function loadOverview() {
+      try {
+        const stats = await apiCall(`/v1/staff/audit/stats?days=${State.windowDays}`);
+        document.getElementById('stat-total').textContent = stats.total_events.toLocaleString();
+        document.getElementById('stat-denied').textContent = stats.denied_count.toLocaleString();
+        const granted = stats.total_events - stats.denied_count;
+        document.getElementById('stat-granted').textContent = granted.toLocaleString();
+        document.getElementById('stat-actors').textContent = stats.top_actors.length;
+
+        // Top actions
+        const actionsBody = document.getElementById('top-actions-body');
+        actionsBody.innerHTML = stats.top_actions.length === 0
+          ? '<tr><td class="py-2 text-slate-400">No data in window</td></tr>'
+          : stats.top_actions.map(a => `
+            <tr class="border-b border-slate-100">
+              <td class="py-1.5 action-pill text-teal">${escapeHtml(a.action)}</td>
+              <td class="py-1.5 text-right font-semibold text-navy">${a.count}</td>
+            </tr>
+          `).join('');
+
+        // Top actors
+        const actorsBody = document.getElementById('top-actors-body');
+        actorsBody.innerHTML = stats.top_actors.length === 0
+          ? '<tr><td class="py-2 text-slate-400">No data in window</td></tr>'
+          : stats.top_actors.map(a => `
+            <tr class="border-b border-slate-100">
+              <td class="py-1.5 text-slate-700">${escapeHtml(a.actor_name || '(unknown)')}</td>
+              <td class="py-1.5 text-right font-semibold text-navy">${a.count}</td>
+            </tr>
+          `).join('');
+
+        // By resource
+        const maxCount = Math.max(...stats.by_resource_type.map(r => r.count), 1);
+        document.getElementById('by-resource-body').innerHTML = stats.by_resource_type.map(r => `
+          <div class="flex items-center gap-3">
+            <span class="w-32 text-sm text-slate-700 truncate">${escapeHtml(r.resource_type)}</span>
+            <div class="flex-1 h-5 bg-slate-100 rounded relative overflow-hidden">
+              <div class="absolute left-0 top-0 h-full bg-teal rounded" style="width: ${(r.count / maxCount) * 100}%"></div>
+            </div>
+            <span class="w-16 text-right text-sm font-semibold text-navy">${r.count}</span>
+          </div>
+        `).join('') || '<p class="text-sm text-slate-400">No data in window</p>';
+      } catch (err) {
+        alert('Failed to load overview: ' + err.message);
+      }
+    }
+
+    // ═══════════════════════════════════════════════
+    // Logs
+    // ═══════════════════════════════════════════════
+    document.getElementById('apply-filters-btn').addEventListener('click', () => {
+      State.currentPage = 1;
+      loadLogs();
+    });
+    document.getElementById('reset-filters-btn').addEventListener('click', () => {
+      document.getElementById('filter-resource-type').value = '';
+      document.getElementById('filter-action').value = '';
+      document.getElementById('filter-per-page').value = '50';
+      State.currentPage = 1;
+      loadLogs();
+    });
+    document.getElementById('prev-page').addEventListener('click', () => {
+      if (State.currentPage > 1) { State.currentPage--; loadLogs(); }
+    });
+    document.getElementById('next-page').addEventListener('click', () => {
+      State.currentPage++; loadLogs();
+    });
+
+    async function loadLogs() {
+      const resourceType = document.getElementById('filter-resource-type').value;
+      const action = document.getElementById('filter-action').value.trim();
+      State.perPage = parseInt(document.getElementById('filter-per-page').value);
+
+      const params = new URLSearchParams({
+        page: State.currentPage,
+        per_page: State.perPage,
+      });
+      if (resourceType) params.append('resource_type', resourceType);
+      if (action) params.append('action', action);
+
+      try {
+        const data = await apiCall(`/v1/staff/audit/logs?${params}`);
+        const tbody = document.getElementById('logs-tbody');
+
+        if (data.items.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">No audit events match your filters.</td></tr>';
+        } else {
+          tbody.innerHTML = data.items.map(item => `
+            <tr class="hover:bg-slate-50">
+              <td class="px-4 py-2 text-xs text-slate-500 font-mono whitespace-nowrap">${formatTimestamp(item.created_at)}</td>
+              <td class="px-4 py-2">
+                <div class="text-slate-900">${escapeHtml(item.actor_name || '(system)')}</div>
+                <div class="text-xs text-slate-400">${escapeHtml(item.actor_type)}</div>
+              </td>
+              <td class="px-4 py-2"><span class="action-pill inline-block px-2 py-0.5 bg-ice text-teal rounded">${escapeHtml(item.action)}</span></td>
+              <td class="px-4 py-2">
+                <div class="text-slate-700">${escapeHtml(item.resource_type || '—')}</div>
+                <div class="text-xs text-slate-400 font-mono">${item.resource_id ? item.resource_id.slice(0, 8) + '…' : ''}</div>
+              </td>
+              <td class="px-4 py-2">${renderClearanceBadge(item.clearance_check_result)}</td>
+            </tr>
+          `).join('');
+        }
+
+        const start = (State.currentPage - 1) * State.perPage + 1;
+        const end = Math.min(State.currentPage * State.perPage, data.total);
+        document.getElementById('logs-summary').textContent =
+          data.total === 0 ? 'No events' : `Showing ${start}–${end} of ${data.total.toLocaleString()}`;
+        document.getElementById('page-indicator').textContent = `Page ${State.currentPage}`;
+        document.getElementById('prev-page').disabled = State.currentPage === 1;
+        document.getElementById('next-page').disabled = State.currentPage * State.perPage >= data.total;
+      } catch (err) {
+        alert('Failed to load logs: ' + err.message);
+      }
+    }
+
+    // ═══════════════════════════════════════════════
+    // Case Trail (Dossier + Submission)
+    // ═══════════════════════════════════════════════
+    let trailMode = 'dossier'; // 'dossier' | 'submission'
+
+    // Mode toggle
+    document.querySelectorAll('.trail-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.id === 'mode-dossier' ? 'dossier' : 'submission';
+        trailMode = mode;
+        document.querySelectorAll('.trail-mode-btn').forEach(b => {
+          b.classList.remove('bg-teal', 'text-white');
+          b.classList.add('bg-slate-100', 'text-slate-600');
+        });
+        btn.classList.add('bg-teal', 'text-white');
+        btn.classList.remove('bg-slate-100', 'text-slate-600');
+        document.getElementById('trail-input-label').textContent =
+          mode === 'dossier' ? 'Dossier ID (UUID)' : 'Submission ID (UUID)';
+        document.getElementById('trail-id-input').placeholder =
+          mode === 'dossier' ? 'Paste dossier UUID or select from list below' : 'Paste submission UUID or select from list below';
+        document.getElementById('recent-dossiers-panel').classList.toggle('hidden', mode !== 'dossier');
+        document.getElementById('recent-submissions-panel').classList.toggle('hidden', mode !== 'submission');
+        // Reset result
+        document.getElementById('trail-result').classList.add('hidden');
+        document.getElementById('trail-empty').classList.remove('hidden');
+        if (mode === 'submission') loadRecentSubmissions();
+      });
+    });
+
+    // Load trail button
+    document.getElementById('load-trail-btn').addEventListener('click', () => {
+      const id = document.getElementById('trail-id-input').value.trim();
+      if (id) loadTrail(id, trailMode);
+    });
+    document.getElementById('trail-id-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const id = document.getElementById('trail-id-input').value.trim();
+        if (id) loadTrail(id, trailMode);
+      }
+    });
+
+    // Recent dossiers picker
+    async function loadRecentDossiers() {
+      try {
+        const data = await apiCall('/v1/staff/dossiers?page_size=20');
+        const list = document.getElementById('recent-dossiers-list');
+        if (!data.items || data.items.length === 0) {
+          list.innerHTML = '<div class="px-4 py-6 text-center text-sm text-slate-400">No dossiers found.</div>';
+          return;
+        }
+        list.innerHTML = data.items.map(d => `
+          <button onclick="selectDossier('${d.id}')"
+            class="w-full text-left px-4 py-2.5 hover:bg-ice transition flex items-center gap-3 group">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-sm font-semibold text-navy">${escapeHtml(d.reference_number || '(draft)')}</span>
+                <span class="inline-block px-1.5 py-0.5 text-xs rounded ${statusColor(d.status)}">${escapeHtml(d.status)}</span>
+              </div>
+              <div class="text-xs text-slate-500 mt-0.5 truncate">
+                ${escapeHtml(d.citizen_name || '—')} · ${escapeHtml(d.case_type_name || '')} · ${formatTimestamp(d.created_at)}
+              </div>
+            </div>
+            <span class="text-xs text-slate-400 group-hover:text-teal font-mono">${d.id.slice(0, 8)}…</span>
+          </button>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load dossiers:', err);
+      }
+    }
+
+    // Recent submissions picker (from audit logs)
+    async function loadRecentSubmissions() {
+      try {
+        const data = await apiCall('/v1/staff/audit/logs?resource_type=submission&per_page=100');
+        const list = document.getElementById('recent-submissions-list');
+        // Deduplicate by resource_id
+        const seen = new Set();
+        const unique = [];
+        for (const item of data.items) {
+          const rid = item.resource_id;
+          if (rid && !seen.has(rid)) {
+            seen.add(rid);
+            unique.push(item);
+          }
+        }
+        if (unique.length === 0) {
+          list.innerHTML = '<div class="px-4 py-6 text-center text-sm text-slate-400">No submissions found in audit logs.</div>';
+          return;
+        }
+        list.innerHTML = unique.slice(0, 20).map(s => `
+          <button onclick="selectSubmission('${escapeHtml(s.resource_id)}')"
+            class="w-full text-left px-4 py-2.5 hover:bg-ice transition flex items-center gap-3 group">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-sm text-navy">${s.resource_id.slice(0, 12)}…</span>
+                <span class="action-pill inline-block px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">${escapeHtml(s.action)}</span>
+              </div>
+              <div class="text-xs text-slate-500 mt-0.5">
+                ${escapeHtml(s.actor_name || '?')} · ${formatTimestamp(s.created_at)}
+              </div>
+            </div>
+            <span class="text-xs text-slate-400 group-hover:text-teal">View trail →</span>
+          </button>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load submissions:', err);
+      }
+    }
+
+    // Global click handlers for pickers
+    window.selectDossier = function(id) {
+      document.getElementById('trail-id-input').value = id;
+      trailMode = 'dossier';
+      loadTrail(id, 'dossier');
+      // Scroll down so user sees the result area
+      setTimeout(() => document.getElementById('trail-result').scrollIntoView({ behavior: 'smooth', block: 'start' }), 500);
+    };
+    window.selectSubmission = function(id) {
+      document.getElementById('trail-id-input').value = id;
+      trailMode = 'submission';
+      loadTrail(id, 'submission');
+      setTimeout(() => document.getElementById('trail-result').scrollIntoView({ behavior: 'smooth', block: 'start' }), 500);
+    };
+
+    document.getElementById('refresh-dossiers-btn').addEventListener('click', loadRecentDossiers);
+    document.getElementById('refresh-submissions-btn').addEventListener('click', loadRecentSubmissions);
+
+    async function loadTrail(id, mode) {
+      if (!id) return;
+      const btn = document.getElementById('load-trail-btn');
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      const endpoint = mode === 'submission'
+        ? `/v1/staff/audit/submissions/${id}/trail`
+        : `/v1/staff/audit/dossiers/${id}/trail`;
+      try {
+        const data = await apiCall(endpoint);
+        document.getElementById('trail-empty').classList.add('hidden');
+        document.getElementById('trail-result').classList.remove('hidden');
+
+        document.getElementById('trail-ref').textContent = data.reference_number || '—';
+        document.getElementById('trail-status').textContent = data.status;
+        document.getElementById('trail-classification').innerHTML = renderClassificationBadge(data.security_classification);
+        document.getElementById('trail-total').textContent = data.total_events;
+
+        // Show linked dossier button for submissions
+        const linkedPanel = document.getElementById('trail-linked-dossier');
+        if (mode === 'submission' && data.dossier_id) {
+          linkedPanel.classList.remove('hidden');
+          document.getElementById('trail-goto-dossier').onclick = () => {
+            document.getElementById('trail-id-input').value = data.dossier_id;
+            // Switch to dossier mode visually
+            document.getElementById('mode-dossier').click();
+            loadTrail(data.dossier_id, 'dossier');
+          };
+        } else {
+          linkedPanel.classList.add('hidden');
+        }
+
+        const timeline = document.getElementById('trail-timeline');
+        if (!data.timeline || data.timeline.length === 0) {
+          timeline.innerHTML = '<p class="text-sm text-slate-400 text-center py-4">No events recorded yet.</p>';
+        } else {
+          timeline.innerHTML = data.timeline.map((ev, i) => `
+            <div class="flex gap-3 ${i !== data.timeline.length - 1 ? 'pb-3 border-l-2 border-slate-100 relative' : ''}">
+              <div class="flex-shrink-0 w-8 h-8 rounded-full ${eventIconBg(ev.action)} flex items-center justify-center -ml-4 relative z-10">
+                ${eventIcon(ev.action)}
+              </div>
+              <div class="flex-1 bg-slate-50 rounded-lg p-3 -mt-1">
+                <div class="flex items-center justify-between">
+                  <span class="action-pill text-teal font-semibold">${escapeHtml(ev.action)}</span>
+                  <span class="text-xs text-slate-500 font-mono">${formatTimestamp(ev.timestamp)}</span>
+                </div>
+                <div class="mt-1 text-sm text-slate-700">
+                  <strong>${escapeHtml(ev.actor_name || '(system)')}</strong>
+                  ${ev.department ? `<span class="text-slate-500">· ${escapeHtml(ev.department)}</span>` : ''}
+                </div>
+                ${ev.details && ev.details.content ? `<div class="mt-2 text-sm text-slate-600 italic">"${escapeHtml(ev.details.content)}"</div>` : ''}
+                ${ev.clearance_check_result ? `<div class="mt-1">${renderClearanceBadge(ev.clearance_check_result)}</div>` : ''}
+              </div>
+            </div>
+          `).join('');
+        }
+        // Scroll to result
+        document.getElementById('trail-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } catch (err) {
+        alert('Failed to load trail: ' + err.message);
+      } finally {
+        const btn = document.getElementById('load-trail-btn');
+        btn.disabled = false;
+        btn.textContent = 'Load Trail';
+      }
+    }
+
+    function statusColor(s) {
+      if (!s) return 'bg-slate-100 text-slate-600';
+      if (s === 'completed') return 'bg-green-100 text-green-700';
+      if (s === 'in_progress') return 'bg-blue-100 text-blue-700';
+      if (s === 'submitted') return 'bg-teal/20 text-teal';
+      if (s === 'draft') return 'bg-slate-100 text-slate-600';
+      if (s === 'rejected') return 'bg-red-100 text-red-700';
+      return 'bg-slate-100 text-slate-600';
+    }
+
+    // ═══════════════════════════════════════════════
+    // Render helpers
+    // ═══════════════════════════════════════════════
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[c]);
+    }
+
+    function formatTimestamp(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleString('en-GB', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false,
+      });
+    }
+
+    function renderClearanceBadge(result) {
+      if (!result) return '<span class="text-xs text-slate-400">—</span>';
+      if (result === 'granted' || result === 'pass') {
+        return '<span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded">Granted</span>';
+      }
+      if (result === 'denied' || result === 'fail') {
+        return '<span class="inline-block px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">Denied</span>';
+      }
+      return `<span class="text-xs text-slate-500">${escapeHtml(result)}</span>`;
+    }
+
+    function renderClassificationBadge(level) {
+      const labels = ['Unclassified', 'Confidential', 'Secret', 'Top Secret'];
+      const colors = ['bg-slate-100 text-slate-700', 'bg-blue-100 text-blue-700', 'bg-orange-100 text-orange-700', 'bg-red-100 text-red-700'];
+      const idx = Math.max(0, Math.min(3, level || 0));
+      return `<span class="inline-block px-2 py-0.5 ${colors[idx]} text-xs font-semibold rounded">${labels[idx]}</span>`;
+    }
+
+    function eventIconBg(action) {
+      if (!action) return 'bg-slate-200';
+      if (action.includes('approved')) return 'bg-green-100';
+      if (action.includes('rejected')) return 'bg-red-100';
+      if (action.includes('denied')) return 'bg-red-100';
+      if (action.includes('annotation')) return 'bg-amber-100';
+      if (action.includes('review')) return 'bg-teal/20';
+      return 'bg-slate-100';
+    }
+
+    function eventIcon(action) {
+      const base = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">';
+      if (!action) return base + '<circle cx="12" cy="12" r="4"/></svg>';
+      if (action.includes('approved')) return base + '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>'.replace('class="w-4 h-4"', 'class="w-4 h-4 text-green-700"');
+      if (action.includes('rejected') || action.includes('denied')) return base + '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>'.replace('class="w-4 h-4"', 'class="w-4 h-4 text-red-700"');
+      if (action.includes('annotation')) return base + '<path stroke-linecap="round" stroke-linejoin="round" d="M7 8h10M7 12h6m-6 4h4m5 5l3-3-3-3"/></svg>'.replace('class="w-4 h-4"', 'class="w-4 h-4 text-amber-700"');
+      return base + '<circle cx="12" cy="12" r="4"/></svg>'.replace('class="w-4 h-4"', 'class="w-4 h-4 text-slate-600"');
+    }
+
+    // ═══════════════════════════════════════════════
+    // Boot
+    // ═══════════════════════════════════════════════
+    if (State.token && State.user) {
+      showApp();
+    }
+  </script>
+</body>
+</html>

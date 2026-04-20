@@ -74,6 +74,12 @@ if settings.storage_backend == "local":
     os.makedirs(settings.local_storage_path, exist_ok=True)
     app.mount("/files", StaticFiles(directory=settings.local_storage_path), name="uploads")
 
+# Admin dashboard — static web UI for audit trail viewing
+import os as _os
+_admin_dir = _os.path.join(_os.path.dirname(__file__), "static", "admin")
+if _os.path.isdir(_admin_dir):
+    app.mount("/admin", StaticFiles(directory=_admin_dir, html=True), name="admin")
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

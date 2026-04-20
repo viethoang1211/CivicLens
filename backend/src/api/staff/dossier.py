@@ -32,6 +32,8 @@ _EDITABLE_STATUSES = {"draft", "scanning"}
 # ---------------------------------------------------------------------------
 
 async def _load_dossier_or_404(dossier_id: uuid.UUID, db: AsyncSession) -> Dossier:
+    from src.models.workflow_step import WorkflowStep
+
     result = await db.execute(
         select(Dossier)
         .where(Dossier.id == dossier_id)
@@ -45,7 +47,9 @@ async def _load_dossier_or_404(dossier_id: uuid.UUID, db: AsyncSession) -> Dossi
             selectinload(Dossier.documents).selectinload(DossierDocument.requirement_slot).selectinload(
                 DocumentRequirementSlot.document_type
             ),
-            selectinload(Dossier.workflow_steps),
+            selectinload(Dossier.workflow_steps).selectinload(WorkflowStep.department),
+            selectinload(Dossier.workflow_steps).selectinload(WorkflowStep.assigned_reviewer),
+            selectinload(Dossier.workflow_steps).selectinload(WorkflowStep.annotations),
         )
     )
     dossier = result.scalar_one_or_none()
@@ -119,10 +123,23 @@ def _build_dossier_response(dossier: Dossier, completeness: dict | None = None) 
         {
             "step_order": ws.step_order,
             "department_id": str(ws.department_id),
+            "department_name": ws.department.name if ws.department else None,
             "status": ws.status,
+            "result": ws.result,
             "started_at": ws.started_at.isoformat() if ws.started_at else None,
             "completed_at": ws.completed_at.isoformat() if ws.completed_at else None,
             "expected_complete_by": ws.expected_complete_by.isoformat() if ws.expected_complete_by else None,
+            "assigned_reviewer_id": str(ws.assigned_reviewer_id) if ws.assigned_reviewer_id else None,
+            "assigned_reviewer_name": ws.assigned_reviewer.full_name if ws.assigned_reviewer else None,
+            "annotations": [
+                {
+                    "type": a.annotation_type,
+                    "content": a.content,
+                    "target_citizen": a.target_citizen,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                }
+                for a in sorted(ws.annotations, key=lambda x: x.created_at or datetime.min.replace(tzinfo=UTC))
+            ],
         }
         for ws in sorted(dossier.workflow_steps, key=lambda s: s.step_order)
     ]
@@ -133,7 +150,7 @@ def _build_dossier_response(dossier: Dossier, completeness: dict | None = None) 
     if active_step:
         current_step_out = {
             "step_order": active_step["step_order"],
-            "department_name": active_step.get("department_name", f"Phòng {active_step['step_order']}"),
+            "department_name": active_step.get("department_name") or f"Phòng {active_step['step_order']}",
             "status": active_step["status"],
         }
     total_steps = len(workflow_steps_out)
@@ -230,6 +247,17 @@ async def create_dossier(
     await db.commit()
     await db.refresh(dossier)
 
+    await audit_service.log_access(
+        db=db,
+        actor_type="staff",
+        actor_id=staff.staff_id,
+        action="dossier_create",
+        resource_type="dossier",
+        resource_id=dossier.id,
+        metadata={"case_type_id": str(case_type.id), "priority": body.priority},
+    )
+    await db.commit()
+
     # Re-load with relationships for response
     dossier = await _load_dossier_or_404(dossier.id, db)
     completeness = await dossier_service.check_completeness(dossier.id, db)
@@ -304,6 +332,17 @@ async def get_dossier(
     db: AsyncSession = Depends(get_db),
 ):
     dossier = await _load_dossier_or_404(dossier_id, db)
+
+    await audit_service.log_access(
+        db=db,
+        actor_type="staff",
+        actor_id=staff.staff_id,
+        action="dossier_view",
+        resource_type="dossier",
+        resource_id=dossier_id,
+    )
+    await db.commit()
+
     completeness = await dossier_service.check_completeness(dossier_id, db)
     return _build_dossier_response(dossier, completeness)
 
@@ -399,6 +438,16 @@ async def upload_document(
     if dossier.status == "draft":
         dossier.status = "scanning"
 
+    await audit_service.log_access(
+        db=db,
+        actor_type="staff",
+        actor_id=staff.staff_id,
+        action="dossier_add_document",
+        resource_type="dossier",
+        resource_id=dossier_id,
+        metadata={"document_id": str(dossier_doc.id), "slot_id": str(requirement_slot_id), "page_count": len(pages_out)},
+    )
+
     await db.commit()
 
     # Enqueue AI slot validation
@@ -462,6 +511,17 @@ async def delete_document(
         await db.delete(page)
 
     await db.delete(doc)
+
+    await audit_service.log_access(
+        db=db,
+        actor_type="staff",
+        actor_id=staff.staff_id,
+        action="dossier_delete_document",
+        resource_type="dossier",
+        resource_id=dossier_id,
+        metadata={"document_id": str(document_id)},
+    )
+
     await db.commit()
 
 
@@ -571,6 +631,7 @@ async def submit_dossier(
         resource_id=dossier_id,
         metadata={"reference_number": ref_num, "status": dossier.status},
     )
+    await db.commit()
 
     # Trigger dossier-level AI summary generation
     try:

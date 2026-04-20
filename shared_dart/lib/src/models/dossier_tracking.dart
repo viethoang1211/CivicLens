@@ -82,7 +82,7 @@ class DossierTrackingDto {
           ? DateTime.parse(json['completed_at'] as String)
           : null,
       rejectionReason: json['rejection_reason'] as String?,
-      steps: (json['steps'] as List<dynamic>? ?? [])
+      steps: (json['workflow_steps'] as List<dynamic>? ?? [])
           .map((s) => DossierTrackingStepDto.fromJson(s as Map<String, dynamic>))
           .toList(),
     );

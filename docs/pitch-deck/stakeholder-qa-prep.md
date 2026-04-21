@@ -152,21 +152,76 @@
 > | 3 | Top Secret | Classified reports |
 
 **Q: How is security enforced?**
-> Three layers:
-> 1. **Application-level ABAC** — Every staff API endpoint checks `staff.clearance_level >= document.security_classification` before returning data
-> 2. **PostgreSQL Row-Level Security (RLS)** — Database-level policies on `submission` and `scanned_page` tables prevent even raw SQL from leaking classified data
-> 3. **Audit logging** — Every access attempt (granted or denied) is recorded with actor, action, resource, and clearance decision
+> Three independent, overlapping layers — a failure in any one layer is caught by the next:
+>
+> **Layer 1 — Attribute-Based Access Control (ABAC) at the API**
+> Every staff endpoint runs a clearance check before returning any data:
+> ```
+> if staff.clearance_level < resource.security_classification:
+>     log_access(result="denied")
+>     raise HTTP 403
+> ```
+> This is enforced in `src/security/abac.py` and called explicitly in each route handler. There is no path to bypass it from the application layer.
+>
+> **Layer 2 — PostgreSQL Row-Level Security (RLS)**
+> Database-level policies on `submission` and `scanned_page` tables are set to `USING (security_classification <= current_setting('app.staff_clearance')::int)`. Even if application code had a bug or a developer ran a raw `SELECT *`, the database itself would filter out rows the caller has no clearance to see. This is the last line of defense.
+>
+> **Layer 3 — Audit Logging (every access attempt, granted or denied)**
+> An `AuditInterceptor` middleware automatically records every staff API call. Explicit `log_access()` calls at key decision points add granularity. The combination means:
+> - A granted access is recorded → compliance evidence
+> - A denied access is recorded → intrusion detection / anomaly alerting
+> - Human override of AI (e.g., overriding document classification) is recorded with the `ai_match_overridden` flag
+
+**Q: What exactly is ABAC vs RBAC? Why ABAC?**
+> **RBAC (Role-Based)** grants access by role: "all Reception officers can view all submissions." Simple, but too coarse — a Reception officer should not see a Top Secret submission just because they're in the Reception role.
+>
+> **ABAC (Attribute-Based)** grants access based on matching attributes between the actor and the resource. In our system:
+> - Actor attribute: `staff.clearance_level` (0–3)
+> - Resource attribute: `document.security_classification` (0–3)
+> - Policy: access is granted if and only if `clearance_level >= security_classification`
+>
+> This means an officer's access dynamically adjusts as documents change classification levels — no need to manage role assignments. A document reclassified from level 1 → level 3 instantly becomes inaccessible to level-1 and level-2 officers, with zero configuration change.
 
 **Q: Is there an audit trail?**
-> Yes, comprehensive. The `AuditLogEntry` table records:
-> - Who (staff member ID, name, department)
-> - What (action: view, create, approve, reject, classify, search, etc.)
-> - Which resource (submission/dossier/scanned page ID)
-> - When (timestamp)
-> - Clearance result (granted/denied)
-> - Additional metadata (JSONB)
+> Yes — comprehensive, tamper-evident, and queryable through a live web dashboard.
 >
-> An automatic audit interceptor middleware logs every staff API call without requiring developers to add manual logging.
+> **What is recorded:** Every `AuditLogEntry` captures:
+> | Field | Example |
+> |-------|--------|
+> | Actor | Nguyễn Văn An (NV001, Reception) |
+> | Action | `review_approved`, `dossier_view`, `dossier_submit`, `scan`, `classify` |
+> | Resource type + ID | `dossier` / `workflow_step` / `submission` / `scanned_page` |
+> | Timestamp | 2026-04-21T08:23:09+07:00 |
+> | Clearance result | `granted` or `denied` |
+> | Metadata | JSONB — reference number, page count, AI confidence, etc. |
+>
+> **Two levels of capture:**
+> 1. **Automatic** — An `AuditInterceptor` middleware records every successful staff API call (method, path, actor) without any per-endpoint code.
+> 2. **Explicit** — Key actions (dossier create/submit/view/add-document, review approve/reject, ABAC deny) call `log_access()` directly with full resource IDs and structured metadata.
+>
+> **Live Audit Dashboard** at `http://43.98.196.158/admin/`:
+> - **Overview tab** — rolling-window metrics (1/7/30/90 days): total events, denied count, top actions bar chart, most active staff, events by resource type
+> - **Audit Logs tab** — filterable, paginated table of all 191+ events; filter by resource type (`dossier`, `submission`, `workflow_step`, `scanned_page`), action name, page size
+> - **Case Trail tab** — pick any dossier from a live list (shows reference number + citizen name + status) → see its complete timeline: who scanned, who classified, which department approved at each step, with timestamps and reviewer notes. Also supports Quick Scan submissions with a link to their auto-created dossier.
+
+**Q: Can the audit log be tampered with or deleted?**
+> The `AuditLogEntry` table has no `UPDATE` or `DELETE` routes in the API — entries are insert-only by design. Database-level, the application user has `INSERT` and `SELECT` but not `UPDATE`/`DELETE` on the audit table. Log entries are also immutable in the object model (`created_at` is set once on insert).
+
+**Q: Can you query "who accessed a specific document and when"?**
+> Yes — directly from the dashboard or via API:
+> - Dashboard → Case Trail tab → paste or select a dossier → full chronological timeline of every access, review, annotation
+> - API: `GET /v1/staff/audit/logs?resource_type=dossier&resource_id={uuid}` returns all entries for that exact document
+> - API: `GET /v1/staff/audit/dossiers/{uuid}/trail` returns a merged timeline including workflow step reviews and reviewer annotations
+
+**Q: What triggers an audit entry — only sensitive actions, or everything?**
+> Everything that matters:
+> - **Every staff API call** — auto-logged by middleware (coarse-grained: method + path)
+> - **Every ABAC check** — both granted and denied results are recorded
+> - **Every review decision** — `review_approved` / `review_rejected` / `review_needs_info` with the reviewer's identity and workflow step ID
+> - **Every dossier lifecycle event** — create, add document, submit, view
+> - **Every scan and classification** — OCR scan, finalize, AI classification, OCR correction
+>
+> Actions that are NOT individually audited (by design, low risk): listing dossiers, reading public case type definitions.
 
 **Q: Can an officer see cases outside their department?**
 > Officers see their **department's queue** by default. Search can return results from other departments (if clearance allows), but workflow actions (approve/reject) can only be performed by the assigned department. This is enforced at both the API and database level.
@@ -301,7 +356,6 @@
 > | Push notifications | Infrastructure ready, not yet activated | Enable Alibaba Cloud EMAS |
 > | Parallel department review | Sequential only | Add parallel step support |
 > | Citizen-side search | Not available | Privacy-scoped citizen search |
-> | Admin dashboard | API exists, no UI | Build manager web dashboard |
 > | AI routing | Static rules | ML-based routing suggestions |
 > | Document volume | PostgreSQL FTS (~100K docs) | Elasticsearch for larger scale |
 
@@ -317,6 +371,16 @@
 
 **Q: What if the internet goes down during the demo?**
 > The Staff App will show connection errors. The system requires internet connectivity for both the API backend and AI processing. Offline mode is not currently supported but could be added for basic document capture (with deferred AI processing).
+
+**Q: Can we see the audit trail live — right now, during the demo?**
+> Yes. Open `http://43.98.196.158/admin/` in any browser and log in with `NV007` / `password123` (Leadership manager, clearance level 3).
+>
+> From there, you can:
+> 1. **Overview** — see that we currently have 191+ audit events in the system across the demo period, broken down by action type and staff member
+> 2. **Audit Logs** — filter by `resource_type = dossier` to see every dossier creation, view, and submission event; filter by `action = review_approved` to see all approval decisions
+> 3. **Case Trail** — select dossier `HS-20260417-00008` (a completed case) and see its complete 7-event timeline: three departments each approved with reviewer name, timestamp, and comment
+>
+> This is not a mock or a separate reporting tool — it reads from the same live database that the Staff App uses.
 
 **Q: How is this different from just scanning to PDF?**
 > Scanning to PDF gives you an image file. This system gives you:

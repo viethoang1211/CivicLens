@@ -28,18 +28,18 @@ const path = require("path");
 
 // ─── Palette ────────────────────────────────────────────────
 const C = {
-  navy:    "1B2A4A",
+  navy: "1B2A4A",
   medNavy: "2B4C7E",
-  teal:    "0891B2",
-  ice:     "E8F4F8",
-  text:    "1E293B",
-  muted:   "64748B",
-  white:   "FFFFFF",
-  offWhite:"F8FAFC",
-  green:   "059669",
-  orange:  "D97706",
-  red:     "DC2626",
-  lightTeal:"CCFBF1",
+  teal: "0891B2",
+  ice: "E8F4F8",
+  text: "1E293B",
+  muted: "64748B",
+  white: "FFFFFF",
+  offWhite: "F8FAFC",
+  green: "059669",
+  orange: "D97706",
+  red: "DC2626",
+  lightTeal: "CCFBF1",
 };
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -60,19 +60,19 @@ async function renderIcon(svgContent, color, size = 200) {
 
 // Simple icon paths (inline SVG)
 const ICONS = {
-  scan:     '<path d="M3 9V5a2 2 0 012-2h4M15 3h4a2 2 0 012 2v4M21 15v4a2 2 0 01-2 2h-4M9 21H5a2 2 0 01-2-2v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-  brain:    '<path d="M12 2a7 7 0 017 7c0 2.5-1.3 4.7-3.3 6L14 20H10l-1.7-5C6.3 13.7 5 11.5 5 9a7 7 0 017-7z" fill="none" stroke="currentColor" stroke-width="2"/>',
-  route:    '<path d="M9 18l6-12M4 6h4M16 18h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-  summary:  '<path d="M4 4h16v16H4zM8 8h8M8 12h6M8 16h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-  collab:   '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" fill="none" stroke="currentColor" stroke-width="2"/>',
-  track:    '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
-  search:   '<circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.35-4.35" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-  shield:   '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="currentColor" stroke-width="2"/>',
-  clock:    '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-  check:    '<path d="M22 11.08V12a10 10 0 11-5.93-9.14" fill="none" stroke="currentColor" stroke-width="2"/><path d="M22 4L12 14.01l-3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
-  alert:    '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-  doc:      '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
-  play:     '<polygon points="5,3 19,12 5,21" fill="currentColor"/>',
+  scan: '<path d="M3 9V5a2 2 0 012-2h4M15 3h4a2 2 0 012 2v4M21 15v4a2 2 0 01-2 2h-4M9 21H5a2 2 0 01-2-2v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  brain: '<path d="M12 2a7 7 0 017 7c0 2.5-1.3 4.7-3.3 6L14 20H10l-1.7-5C6.3 13.7 5 11.5 5 9a7 7 0 017-7z" fill="none" stroke="currentColor" stroke-width="2"/>',
+  route: '<path d="M9 18l6-12M4 6h4M16 18h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  summary: '<path d="M4 4h16v16H4zM8 8h8M8 12h6M8 16h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  collab: '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" fill="none" stroke="currentColor" stroke-width="2"/>',
+  track: '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  search: '<circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.35-4.35" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="currentColor" stroke-width="2"/>',
+  clock: '<circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  check: '<path d="M22 11.08V12a10 10 0 11-5.93-9.14" fill="none" stroke="currentColor" stroke-width="2"/><path d="M22 4L12 14.01l-3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  alert: '<path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4M12 17h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  doc: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  play: '<polygon points="5,3 19,12 5,21" fill="currentColor"/>',
 };
 
 async function makeIconPng(name, color) {
@@ -598,13 +598,13 @@ async function main() {
     const s = pres.addSlide();
     s.background = { color: C.navy };
     s.addShape(pres.shapes.RECTANGLE, { x: 0, y: 0, w: 10, h: 0.06, fill: { color: C.teal } });
-    
+
     s.addText("Thank You", {
       x: 0.8, y: 1.0, w: 8.4, h: 0.9,
       fontSize: 40, fontFace: "Arial Black", color: C.white, bold: true, margin: 0,
     });
     s.addShape(pres.shapes.RECTANGLE, { x: 0.8, y: 2.0, w: 1.5, h: 0.05, fill: { color: C.teal } });
-    
+
     s.addText("We answered the Innovation Challenge:", {
       x: 0.8, y: 2.3, w: 8, h: 0.4,
       fontSize: 14, fontFace: "Calibri", color: "94A3B8", margin: 0,

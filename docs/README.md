@@ -28,6 +28,10 @@ This platform digitizes the entire flow with AI-assisted processing:
 | Zero citizen visibility | Real-time mobile tracking + reference number lookup |
 | No audit trail | 100% immutable audit logging |
 
+## Demo
+
+📹 **[Video Demo](https://drive.google.com/file/d/1QlXJ5FJnjnGdrOIR1RdX69EJpkSgRj6U/view?usp=drivesdk)** — See the system in action: staff document submission, AI processing, citizen tracking, and department routing workflow.
+
 ## Key Capabilities
 
 - **Case-Based Dossier Submission (Hồ Sơ)** — Staff select a case type (e.g., household business registration), see a checklist of required documents, scan and upload each one, and submit the entire dossier as a unit. Each case type defines its own required document bundle with OR-group flexibility.

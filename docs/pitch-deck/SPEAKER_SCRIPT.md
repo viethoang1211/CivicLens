@@ -7,7 +7,7 @@
 
 ## Slide 1: Title (15 seconds)
 
-> Good morning/afternoon. Today I'm going to show you how we turned a manual, paper-heavy document processing workflow into an intelligent, AI-powered platform — built specifically for public sector organizations with strict security and multi-department coordination requirements.
+> Good morning/afternoon. Today I'm going to show you how we turned a manual, paper-heavy document processing workflow into an intelligent, AI-powered platform — built specifically for public sector organizations 
 
 **[Click to next slide]**
 
@@ -17,7 +17,7 @@
 
 > Let's start with the problem we all recognize.
 
-> On the left — three pain points your teams face every day. First, **processing delays**: officers manually read, classify, and route every document — and that takes 5 to 7 days on average. Second, **fragmented flow**: each department works in its own silo — duplicating effort, inconsistent interpretations, no shared visibility. Third, **security constraints**: with four classification levels from Unclassified to Top Secret, access control can't be an afterthought — it has to be built into every layer.
+>  You can see there are three pain points on the left . First, **processing delays**: officers manually read, classify, and route every document — and that takes 5 to 7 days on average. Second, **fragmented flow**: each department works in its own silo — duplicating effort, inconsistent interpretations, no shared visibility. Third, **security constraints**: with four classification levels from Unclassified to Top Secret, access control can't be an afterthought — it has to be built into every layer.
 
 > On the right you see the impact — high manual workload, multiple departments touching the same case, and citizens waiting with no visibility into where their documents are.
 
@@ -31,9 +31,9 @@
 
 > We built an end-to-end platform with three core engines.
 
-> First, the **AI Engine** — this handles OCR, document classification, and summarization. An officer scans a document with their phone camera, and within 10 to 30 seconds, the AI extracts all the text, identifies the document type, and generates a summary with key entities — names, ID numbers, dates — all extracted automatically.
+> First, the **AI Engine** — this handles OCR, document classification, and summarization. An officer scans a document with their phone camera, and within 10 to 30 seconds, the AI extracts all the text, identifies the document type, and generates a summary with key entities.
 
-> Second, the **Workflow Engine** — once documents are classified, the system automatically routes them to the right departments in the right order. Each step has an SLA deadline. No more paper memos or physical file transfers.
+> Second, the **Workflow Engine** — once documents are classified, the system automatically routes them to the right departments in the right order. Each step has an SLA deadline. No more physical file transfers.
 
 > Third, the **Citizen Portal** — a mobile app where citizens can track their case in real-time. They see every step: which department has their case, what's been approved, what's pending. No phone calls, no waiting at the counter.
 
